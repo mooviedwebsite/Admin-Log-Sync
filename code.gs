@@ -3,7 +3,7 @@
 // ║  Deploy → Execute as: Me  |  Access: Anyone                                 ║
 // ╚══════════════════════════════════════════════════════════════════════════════╝
 
-var SPREADSHEET_ID = "14Flm-LOjocdd6vBLm5Z3c5GeIW5_W_7mVNikUSubIiI";
+var SPREADSHEET_ID = "1QY5z_9Y9zOVsJv3b2tw63xPHcs9OQyRMTAakuggvHwY";
 var ADMIN_SECRET   = "YOUR_ADMIN_SECRET_HERE"; // optional: set a long random string
 
 // All supported movie fields — new ones are auto-added as sheet columns
