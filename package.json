@@ -1,0 +1,15 @@
+{
+  "name": "moovied-workspace",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "dev:web": "pnpm --filter @workspace/moovied run dev",
+    "dev:api": "pnpm --filter @workspace/api-server run dev",
+    "build:web": "pnpm --filter @workspace/moovied run build",
+    "build:api": "pnpm --filter @workspace/api-server run build",
+    "build:gh-pages": "cd moovied && node build-gh-pages.mjs"
+  },
+  "devDependencies": {
+    "typescript": "~5.9.2"
+  }
+}
