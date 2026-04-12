@@ -10,7 +10,7 @@ var ADMIN_SECRET   = "YOUR_ADMIN_SECRET_HERE"; // optional: set a long random st
 var MOVIE_FIELDS = [
   "id","title","description","synopsis","poster_url","video_url","yt_link",
   "download_url","dl_2160p","dl_1080p","dl_720p","dl_480p","dl_360p",
-  "stream_1080p","stream_720p",
+  "stream_2160p","stream_1080p","stream_720p","stream_480p","stream_360p",
   "genre","year","views","rating","tmdb_rating","rt_rating",
   "runtime","subtitle_url","director","director_image","cast","gallery",
   "type","episodes"
@@ -223,8 +223,11 @@ function movieRowToObj(headers, row) {
     dl_720p:        String(o.dl_720p        || ""),
     dl_480p:        String(o.dl_480p        || ""),
     dl_360p:        String(o.dl_360p        || ""),
+    stream_2160p:   String(o.stream_2160p   || ""),
     stream_1080p:   String(o.stream_1080p   || ""),
     stream_720p:    String(o.stream_720p    || ""),
+    stream_480p:    String(o.stream_480p    || ""),
+    stream_360p:    String(o.stream_360p    || ""),
     genre:          String(o.genre          || ""),
     year:           String(o.year           || ""),
     views:          Number(o.views)         || 0,

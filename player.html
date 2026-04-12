@@ -743,6 +743,7 @@ html, body {
             <div class="panel-item active" id="qi-auto" onclick="setQuality('auto')" data-q="auto"><span>Auto</span><span class="item-badge" id="qi-auto-badge">Detecting</span></div>
             <div class="qual-divider"></div>
             <div class="qual-section-label">Fixed Resolution</div>
+            <div class="panel-item" id="qi-2160" onclick="setQuality('2160')" data-q="2160"><span>2160p</span><span class="item-badge">4K UHD</span></div>
             <div class="panel-item" id="qi-1080" onclick="setQuality('1080')" data-q="1080"><span>1080p</span><span class="item-badge">Full HD</span></div>
             <div class="panel-item" id="qi-720"  onclick="setQuality('720')"  data-q="720"><span>720p</span><span class="item-badge">HD</span></div>
             <div class="panel-item" id="qi-480"  onclick="setQuality('480')"  data-q="480"><span>480p</span><span class="item-badge">SD</span></div>
@@ -783,6 +784,7 @@ html, body {
       <div class="drawer-section-title">Video Quality</div>
       <div class="drawer-options" id="drawer-quality">
         <div class="drawer-option active" data-q="auto"  onclick="setQualityDrawer('auto')">Auto</div>
+        <div class="drawer-option"        data-q="2160"  onclick="setQualityDrawer('2160')">4K</div>
         <div class="drawer-option"        data-q="1080"  onclick="setQualityDrawer('1080')">1080p</div>
         <div class="drawer-option"        data-q="720"   onclick="setQualityDrawer('720')">720p</div>
         <div class="drawer-option"        data-q="480"   onclick="setQualityDrawer('480')">480p</div>
@@ -860,7 +862,8 @@ html, body {
 // ════════════════════════════════════════════════
 const QUALITY_DEFS = {
   'auto': { label:'Auto',  height:null, width:null,  badge:'Adaptive',  barPct:100 },
-  '1080': { label:'1080p', height:1080, width:1920,  badge:'Full HD',   barPct:100 },
+  '2160': { label:'2160p', height:2160, width:3840,  badge:'4K UHD',    barPct:100 },
+  '1080': { label:'1080p', height:1080, width:1920,  badge:'Full HD',   barPct:85  },
   '720':  { label:'720p',  height:720,  width:1280,  badge:'HD',        barPct:65  },
   '480':  { label:'480p',  height:480,  width:854,   badge:'SD',        barPct:45  },
   '360':  { label:'360p',  height:360,  width:640,   badge:'Low',       barPct:30  },
@@ -980,7 +983,7 @@ function detectVideoResolution(){
   if(!vid.videoWidth||!vid.videoHeight) return;
   detectedWidth=vid.videoWidth; detectedHeight=vid.videoHeight;
   const h=detectedHeight;
-  if(h>=1080)autoQualLabel='1080p';
+  if(h>=2160)autoQualLabel='2160p'; else if(h>=1080)autoQualLabel='1080p';
   else if(h>=720)autoQualLabel='720p'; else if(h>=480)autoQualLabel='480p';
   else if(h>=360)autoQualLabel='360p'; else autoQualLabel='144p';
   qualAutoBadge.textContent=autoQualLabel;
@@ -1008,7 +1011,7 @@ function applyQuality(q){
     });
   } else {
     // Canvas software scaling — use best available real URL as base source
-    const bestBase=qualityUrls['1080']||qualityUrls['720']||mainVideoUrl;
+    const bestBase=qualityUrls['2160']||qualityUrls['1080']||qualityUrls['720']||qualityUrls['480']||qualityUrls['360']||mainVideoUrl;
     if(bestBase && vid.src!==bestBase){
       const t=vid.currentTime,p=vid.paused;
       vid.src=bestBase; vid.load();
@@ -1380,7 +1383,7 @@ introScreen.addEventListener('click',dismissIntro,{once:true});
 // ════════════════════════════════════════════════
 const TEST_VIDEO='https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4';
 function updateQualityBadges(){
-  ['1080','720'].forEach(function(q){
+  ['2160','1080','720','480','360'].forEach(function(q){
     const el=document.getElementById('qi-'+q);
     if(!el) return;
     const badge=el.querySelector('.item-badge');
@@ -1406,7 +1409,7 @@ function loadTestVideo(){
   const subtitleUrl=params.get('subtitle')||'';
   mainVideoUrl=videoUrl;
   qualityUrls={};
-  ['1080','720'].forEach(function(q){
+  ['2160','1080','720','480','360'].forEach(function(q){
     const u=params.get('q'+q)||'';
     if(u) qualityUrls[q]=u;
   });
