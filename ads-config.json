@@ -48,7 +48,7 @@
     "code": ""
   },
   "banner_movie_mid": {
-    "enabled": false,
+    "enabled": true,
     "scriptUrl": "",
     "adKey": "",
     "width": 728,
