@@ -1434,6 +1434,33 @@ function updateQualityBadges(){
     }
   });
 }
+// Quality order from highest to lowest
+const QUALITY_ORDER=['2160','1080','720','480','360','144'];
+
+// Show/hide panel items based on the highest real URL available.
+// Qualities higher than the max real URL are hidden — there's nothing to play/scale from.
+// All qualities at or below the max are shown (real URL or auto canvas).
+function updateQualityPanelVisibility(){
+  // Find highest quality index that has a real URL
+  let maxIdx=-1;
+  QUALITY_ORDER.forEach(function(q,i){ if(qualityUrls[q] && maxIdx===-1) maxIdx=i; });
+
+  QUALITY_ORDER.forEach(function(q,i){
+    // Hide if this quality is HIGHER than the best available real URL
+    const hide = maxIdx!==-1 && i<maxIdx;
+    const el=document.getElementById('qi-'+q);
+    if(el) el.style.display=hide?'none':'';
+    const dOpt=document.querySelector('#drawer-quality .drawer-option[data-q="'+q+'"]');
+    if(dOpt) dOpt.style.display=hide?'none':'';
+  });
+
+  // If current selected quality got hidden, reset to auto
+  if(currentQuality!=='auto'){
+    const idx=QUALITY_ORDER.indexOf(currentQuality);
+    if(maxIdx!==-1 && idx<maxIdx){ setQuality('auto'); }
+  }
+}
+
 function loadTestVideo(){
   const params=new URLSearchParams(window.location.search);
   const videoUrl=params.get('video')||TEST_VIDEO;
@@ -1451,6 +1478,7 @@ function loadTestVideo(){
   document.getElementById('series-name').textContent=series;
   empty.style.display='none'; videoLoaded=true;
   updateQualityBadges();
+  updateQualityPanelVisibility();
   if(subtitleUrl){
     fetchSRT(subtitleUrl).then(text=>{
       if(text){englishSubtitles=parseSRT(text);subsLoaded.english=true;
