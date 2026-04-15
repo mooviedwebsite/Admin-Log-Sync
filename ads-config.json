@@ -1,11 +1,74 @@
 {
-  "popup":            { "enabled": false, "scriptUrl": "", "adKey": "", "width": 0,   "height": 0,   "code": "" },
-  "social_bar":       { "enabled": false, "scriptUrl": "", "adKey": "", "width": 0,   "height": 0,   "code": "" },
-  "banner_home_top":  { "enabled": false, "scriptUrl": "", "adKey": "", "width": 728, "height": 90,  "code": "" },
-  "native_home":      { "enabled": false, "scriptUrl": "", "adKey": "", "width": 0,   "height": 0,   "code": "" },
-  "banner_search":    { "enabled": false, "scriptUrl": "", "adKey": "", "width": 728, "height": 90,  "code": "" },
-  "banner_movie_top": { "enabled": false, "scriptUrl": "", "adKey": "", "width": 728, "height": 90,  "code": "" },
-  "banner_movie_mid": { "enabled": false, "scriptUrl": "", "adKey": "", "width": 728, "height": 90,  "code": "" },
-  "sidebar_movie":    { "enabled": false, "scriptUrl": "", "adKey": "", "width": 160, "height": 600, "code": "" },
-  "sidebar_movie_2":  { "enabled": false, "scriptUrl": "", "adKey": "", "width": 160, "height": 600, "code": "" }
+  "popup": {
+    "enabled": false,
+    "scriptUrl": "",
+    "adKey": "",
+    "width": 0,
+    "height": 0,
+    "code": ""
+  },
+  "social_bar": {
+    "enabled": false,
+    "scriptUrl": "",
+    "adKey": "",
+    "width": 0,
+    "height": 0,
+    "code": ""
+  },
+  "banner_home_top": {
+    "enabled": false,
+    "scriptUrl": "",
+    "adKey": "",
+    "width": 728,
+    "height": 90,
+    "code": ""
+  },
+  "native_home": {
+    "enabled": false,
+    "scriptUrl": "",
+    "adKey": "",
+    "width": 0,
+    "height": 0,
+    "code": ""
+  },
+  "banner_search": {
+    "enabled": false,
+    "scriptUrl": "",
+    "adKey": "",
+    "width": 728,
+    "height": 90,
+    "code": ""
+  },
+  "banner_movie_top": {
+    "enabled": false,
+    "scriptUrl": "",
+    "adKey": "",
+    "width": 728,
+    "height": 90,
+    "code": ""
+  },
+  "banner_movie_mid": {
+    "enabled": false,
+    "scriptUrl": "",
+    "adKey": "",
+    "width": 728,
+    "height": 90,
+    "code": "<script>\n  atOptions = {\n    'key' : '168a0166d248853826b58edb4a5832e7',\n    'format' : 'iframe',\n    'height' : 90,\n    'width' : 728,\n    'params' : {}\n  };\n</script>\n<script src=\"https://www.highperformanceformat.com/168a0166d248853826b58edb4a5832e7/invoke.js\"></script>\n"
+  },
+  "sidebar_movie": {
+    "enabled": false,
+    "scriptUrl": "",
+    "adKey": "",
+    "width": 160,
+    "height": 600,
+    "code": ""
+  },
+  "sidebar_movie_2": {
+    "enabled": false,
+    "scriptUrl": "",
+    "adKey": "",
+    "width": 160,
+    "height": 600,
+    "code": ""
+  }
 }
