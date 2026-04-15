@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MOOVIED Player v3 | Build: 2026-04-15 -->
+<!-- MOOVIED Player v4 | Build: 2026-04-15 | pixelated canvas quality engine -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -63,7 +63,8 @@ html, body {
 #quality-canvas {
   position: absolute; top: 0; left: 0; width: 100%; height: 100%;
   object-fit: contain; display: none; background: #000;
-  image-rendering: auto;
+  image-rendering: pixelated;
+  image-rendering: crisp-edges;
 }
 #gradient-top {
   position: absolute; top: 0; left: 0; right: 0; height: 160px;
@@ -969,42 +970,42 @@ function updateVolIcon() {
 }
 
 // ════════════════════════════════════════════════
-// CANVAS QUALITY ENGINE — two-pass rendering
-// Pass 1: video → small buffer (smooth bilinear downscale, real detail loss)
-// Pass 2: buffer → display canvas (nearest-neighbor upscale, realistic blockiness)
+// CANVAS QUALITY ENGINE
+// Draw video at LOW resolution (e.g. 640×360 for 360p) with smooth downscale.
+// CSS image-rendering:pixelated upscales it blocky → each quality looks distinct.
+// 144p = massive blocks, 360p = medium blocks, 720p = fine pixels.
+// Real URL qualities (1080p, 2160p etc.) bypass canvas entirely.
 // ════════════════════════════════════════════════
-let _bufCanvas=null;
 
 function startCanvasRender(targetW,targetH){
   stopCanvasRender();
 
-  // Clamp target to actual source size (no upscaling artefacts above source res)
+  // Clamp target resolution to actual source size
   const srcW=detectedWidth||vid.videoWidth||1920;
   const srcH=detectedHeight||vid.videoHeight||1080;
   const tW=Math.min(targetW,srcW);
   const tH=Math.min(targetH,srcH);
 
-  // Off-screen buffer at target (low) resolution — smooth downscale
-  if(!_bufCanvas) _bufCanvas=document.createElement('canvas');
-  _bufCanvas.width=tW; _bufCanvas.height=tH;
-  const bCtx=_bufCanvas.getContext('2d');
-  bCtx.imageSmoothingEnabled=true;
-  bCtx.imageSmoothingQuality='high';
-
-  // Display canvas at native video resolution so CSS object-fit:contain letterboxes correctly
-  qualCanvas.width=srcW; qualCanvas.height=srcH;
-  // Nearest-neighbour upscale from buffer → display canvas = realistic blockiness
-  qualCtx.imageSmoothingEnabled=false;
+  // Set canvas to LOW resolution — CSS pixelated scaling makes blocks clearly visible
+  qualCanvas.width=tW; qualCanvas.height=tH;
+  qualCtx.imageSmoothingEnabled=true;
+  qualCtx.imageSmoothingQuality='high';
 
   qualCanvas.style.display='block'; vid.style.opacity='0';
 
   function drawFrame(){
     if(vid.readyState>=2){
-      // Step 1: downscale to tiny buffer (loses real detail)
-      bCtx.drawImage(vid,0,0,tW,tH);
-      // Step 2: upscale back to full native res (nearest-neighbour = blocky/pixelated)
-      qualCtx.clearRect(0,0,srcW,srcH);
-      qualCtx.drawImage(_bufCanvas,0,0,srcW,srcH);
+      // Smooth downscale to tiny canvas (real detail loss)
+      // CSS image-rendering:pixelated then upscales it blocky for real quality effect
+      qualCtx.fillStyle='#000';
+      qualCtx.fillRect(0,0,tW,tH);
+      // Maintain aspect ratio with letterbox bars
+      const vAspect=(vid.videoWidth||srcW)/(vid.videoHeight||srcH);
+      const cAspect=tW/tH;
+      let dw,dh,dx,dy;
+      if(vAspect>cAspect){dw=tW;dh=Math.round(tW/vAspect);dx=0;dy=Math.round((tH-dh)/2);}
+      else{dh=tH;dw=Math.round(tH*vAspect);dy=0;dx=Math.round((tW-dw)/2);}
+      qualCtx.drawImage(vid,dx,dy,dw,dh);
     }
     canvasRafId=requestAnimationFrame(drawFrame);
   }
