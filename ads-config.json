@@ -56,19 +56,19 @@
     "code": "<script>\n  atOptions = {\n    'key' : '168a0166d248853826b58edb4a5832e7',\n    'format' : 'iframe',\n    'height' : 90,\n    'width' : 728,\n    'params' : {}\n  };\n</script>\n<script src=\"https://www.highperformanceformat.com/168a0166d248853826b58edb4a5832e7/invoke.js\"></script>\n"
   },
   "sidebar_movie": {
-    "enabled": false,
+    "enabled": true,
     "scriptUrl": "",
     "adKey": "",
-    "width": 160,
-    "height": 600,
-    "code": ""
+    "width": 300,
+    "height": 250,
+    "code": "<script>\n  atOptions = {\n    'key' : '77e9cf5808d2f3860ea6f532ed1d9627',\n    'format' : 'iframe',\n    'height' : 250,\n    'width' : 300,\n    'params' : {}\n  };\n</script>\n<script src=\"https://www.highperformanceformat.com/77e9cf5808d2f3860ea6f532ed1d9627/invoke.js\"></script>\n"
   },
   "sidebar_movie_2": {
-    "enabled": false,
+    "enabled": true,
     "scriptUrl": "",
     "adKey": "",
-    "width": 160,
-    "height": 600,
-    "code": ""
+    "width": 300,
+    "height": 250,
+    "code": "<script>\n  atOptions = {\n    'key' : '77e9cf5808d2f3860ea6f532ed1d9627',\n    'format' : 'iframe',\n    'height' : 250,\n    'width' : 300,\n    'params' : {}\n  };\n</script>\n<script src=\"https://www.highperformanceformat.com/77e9cf5808d2f3860ea6f532ed1d9627/invoke.js\"></script>\n"
   }
 }
