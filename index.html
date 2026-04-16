@@ -1,6 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
   <head>
+    <!-- moovied-inject -->
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1" />
     <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
@@ -16,31 +17,21 @@
     <link rel="preconnect" href="https://script.googleusercontent.com">
     <link rel="dns-prefetch" href="https://script.googleusercontent.com">
     <link rel="dns-prefetch" href="https://raw.githubusercontent.com">
-    <link rel="dns-prefetch" href="https://www.highperformanceformat.com">
-    <link rel="dns-prefetch" href="https://pl.highperformanceformat.com">
-    <link rel="dns-prefetch" href="https://syndication.realsrv.com">
-    <link rel="dns-prefetch" href="https://a.magsrv.com">
 
-    <!-- MOOVIED API BOOTSTRAP — must run before React bundle loads -->
+    <!-- MOOVIED API — sets correct URLs before React loads -->
     <script>
     (function () {
       var GAS = 'https://script.google.com/macros/s/AKfycbxIz_Cp3iSlHCOmGE_h2ucp2a4zGsOqZY6WaOhIJpR8nggw-bvajcFYU119aKbUQ5hO/exec';
       var API = window.location.origin + '/api';
-
-      // Write correct values to localStorage
       localStorage.setItem('moovied_comments_api_url', API);
       localStorage.setItem('moovied_api_server_url',   API);
       localStorage.setItem('moovied_gas_url',           GAS);
-
-      // Override localStorage.getItem globally so the compiled bundle's
-      // ts() function ALWAYS gets the correct URL, even if it was cached
-      // with a stale value from a previous session.
-      var _origGet = Storage.prototype.getItem;
-      Storage.prototype.getItem = function (key) {
-        if (key === 'moovied_comments_api_url') return API;
-        if (key === 'moovied_api_server_url')   return API;
-        if (key === 'moovied_gas_url')          return GAS;
-        return _origGet.call(this, key);
+      var _g = Storage.prototype.getItem;
+      Storage.prototype.getItem = function (k) {
+        if (k === 'moovied_comments_api_url') return API;
+        if (k === 'moovied_api_server_url')   return API;
+        if (k === 'moovied_gas_url')          return GAS;
+        return _g.call(this, k);
       };
     })();
     </script>
