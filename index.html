@@ -72,12 +72,28 @@
         var SYNCED_FLAG = 'moovied_synced_for_user';
         var REMOTE_WRITE_FLAG = '__moovied_remote_write__';
 
+        function log() {
+          try {
+            var args = ['%c[Moovied Sync]', 'color:#22d3ee;font-weight:bold'];
+            for (var i=0;i<arguments.length;i++) args.push(arguments[i]);
+            console.log.apply(console, args);
+          } catch(e) {}
+        }
+
         function gasPost(payload) {
+          log('POST →', payload.action, payload);
           return _f(GAS, {
             method: 'POST',
+            mode: 'cors',
+            redirect: 'follow',
             headers: { 'Content-Type': 'text/plain;charset=utf-8' },
             body: JSON.stringify(payload)
-          }).then(function(r){ return r.json(); }).catch(function(){ return null; });
+          }).then(function(r){
+            return r.text().then(function(t){
+              try { var j = JSON.parse(t); log('POST ✓', payload.action, j); return j; }
+              catch(e) { log('POST ✗ non-JSON response for', payload.action, 'status', r.status, t.slice(0,200)); return null; }
+            });
+          }).catch(function(err){ log('POST ✗ fetch error for', payload.action, err && err.message || err); return null; });
         }
 
         function gasGet(action, params) {
@@ -85,7 +101,13 @@
           if (params) Object.keys(params).forEach(function(k){
             q += '&' + encodeURIComponent(k) + '=' + encodeURIComponent(params[k]);
           });
-          return _f(GAS + '?' + q).then(function(r){ return r.json(); }).catch(function(){ return null; });
+          log('GET →', action, params);
+          return _f(GAS + '?' + q, { mode: 'cors', redirect: 'follow' }).then(function(r){
+            return r.text().then(function(t){
+              try { var j = JSON.parse(t); log('GET ✓', action, j); return j; }
+              catch(e) { log('GET ✗ non-JSON for', action, 'status', r.status, t.slice(0,200)); return null; }
+            });
+          }).catch(function(err){ log('GET ✗ fetch error for', action, err && err.message || err); return null; });
         }
 
         function getCurrentUser() {
@@ -253,12 +275,13 @@
           _s.call(this, k, v);
           if (window[REMOTE_WRITE_FLAG]) return;
           if (this !== window.localStorage) return;
-          if (k === BOOKMARKS_KEY)      debouncedPush('bm',  pushBookmarks);
-          else if (k === HISTORY_KEY)   debouncedPush('hi',  pushHistory);
+          if (k === BOOKMARKS_KEY)      { log('detected bookmarks change'); debouncedPush('bm', pushBookmarks); }
+          else if (k === HISTORY_KEY)   { log('detected history change');   debouncedPush('hi', pushHistory); }
           else if (k === SESSION_KEY) {
             var nu = getCurrentUser();
             // Login or user change → pull cloud data immediately
             if (nu && nu.id && (!prev || prev.id !== nu.id)) {
+              log('detected login/user change → pulling cloud data');
               pullUserData(nu.id);
             }
             // Profile fields edited locally → push to cloud
@@ -269,8 +292,27 @@
         // Initial pull on page load if user is already logged in
         function initialSync() {
           var u = getCurrentUser();
-          if (u && u.id) pullUserData(u.id);
+          if (u && u.id) {
+            log('initial sync for user', u.id, '(' + (u.email || '') + ')');
+            pullUserData(u.id);
+            // Also force-push current localStorage so old devices upload data they
+            // accumulated before this sync code existed.
+            var localBm = readJson(BOOKMARKS_KEY);
+            var localHi = readJson(HISTORY_KEY);
+            if (localBm.length > 0) debouncedPush('bm', pushBookmarks);
+            if (localHi.length > 0) debouncedPush('hi', pushHistory);
+          } else {
+            log('no logged-in user — skipping sync');
+          }
         }
+
+        // Expose a manual trigger so users can verify in DevTools:
+        //   mooviedSyncNow()
+        window.mooviedSyncNow = function() {
+          log('manual sync triggered');
+          initialSync();
+          return 'sync started — watch console for results';
+        };
         if (document.readyState === 'loading') {
           document.addEventListener('DOMContentLoaded', initialSync);
         } else {
