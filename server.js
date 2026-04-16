@@ -252,11 +252,23 @@ function saveAutosyncConfig(cfg) {
 
 const INJECT_SCRIPT = `<script>
 (function(){
-  var api = window.location.origin + '/api';
-  var gasNew = '${GAS_URL_PRIMARY}';
-  localStorage.setItem('moovied_comments_api_url', api);
-  localStorage.setItem('moovied_api_server_url', api);
-  localStorage.setItem('moovied_gas_url', gasNew);
+  var GAS = '${GAS_URL_PRIMARY}';
+  var API = window.location.origin + '/api';
+
+  // Set correct values in localStorage
+  localStorage.setItem('moovied_comments_api_url', API);
+  localStorage.setItem('moovied_api_server_url',   API);
+  localStorage.setItem('moovied_gas_url',           GAS);
+
+  // Override localStorage.getItem so ts() ALWAYS returns the correct API URL
+  // regardless of what was previously cached — this is the key fix.
+  var _get = Storage.prototype.getItem;
+  Storage.prototype.getItem = function(key) {
+    if (key === 'moovied_comments_api_url') return API;
+    if (key === 'moovied_api_server_url')   return API;
+    if (key === 'moovied_gas_url')          return GAS;
+    return _get.call(this, key);
+  };
 })();
 </script>`;
 
@@ -288,7 +300,8 @@ async function handleApi(req, res, apiPath) {
   // ── GET /api/comments?movieId=xxx ── or ── GET /api/comments/all ──────────
   if (apiPath === '/comments' && method === 'GET') {
     const movieId = qs.get('movieId');
-    if (!movieId) return json(res, { success: false, error: 'movieId required' }, 400);
+    // Return empty array instead of 400 — keeps the frontend banner quiet
+    if (!movieId) return json(res, { success: true, comments: [] });
     const r = await gasGet('getComments', { movieId });
     return json(res, r);
   }
@@ -482,6 +495,15 @@ const server = http.createServer(async (req, res) => {
     // Inject correct API URL into HTML pages
     if (ext === '.html') {
       data = injectIntoHtml(data);
+      // Never cache HTML — forces browser to always get fresh inject script
+      res.writeHead(200, {
+        'Content-Type': mime,
+        'Cache-Control': 'no-cache, no-store, must-revalidate',
+        'Pragma': 'no-cache',
+        'Expires': '0',
+      });
+      res.end(data);
+      return;
     }
 
     res.writeHead(200, { 'Content-Type': mime });
