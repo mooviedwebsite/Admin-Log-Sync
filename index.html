@@ -53,6 +53,165 @@
           return _f(u, o);
         };
       } catch(e) {}
+
+      /* 4. Cross-device user data sync.
+            On login: pull profile + bookmarks + watch history + likes from GAS,
+                      write them into localStorage so the app shows them on this device.
+            On change: push localStorage edits back to GAS (debounced).
+            Storage keys used by the app:
+              moovied_session         — current user
+              moovied_bookmarks       — array of movie ids
+              moovied_watch_history   — array of {movie_id, watched_at, progress}
+              moovied_movie_likes     — array of liked movie ids
+      */
+      try {
+        var SESSION_KEY = 'moovied_session';
+        var BOOKMARKS_KEY = 'moovied_bookmarks';
+        var HISTORY_KEY = 'moovied_watch_history';
+        var LIKES_KEY = 'moovied_movie_likes';
+        var SYNCED_FLAG = 'moovied_synced_for_user';
+        var REMOTE_WRITE_FLAG = '__moovied_remote_write__';
+
+        function gasPost(payload) {
+          return _f(GAS, {
+            method: 'POST',
+            headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+            body: JSON.stringify(payload)
+          }).then(function(r){ return r.json(); }).catch(function(){ return null; });
+        }
+
+        function gasGet(action, params) {
+          var q = 'action=' + encodeURIComponent(action);
+          if (params) Object.keys(params).forEach(function(k){
+            q += '&' + encodeURIComponent(k) + '=' + encodeURIComponent(params[k]);
+          });
+          return _f(GAS + '?' + q).then(function(r){ return r.json(); }).catch(function(){ return null; });
+        }
+
+        function getCurrentUser() {
+          try {
+            var raw = localStorage.getItem(SESSION_KEY);
+            if (!raw) return null;
+            return JSON.parse(raw);
+          } catch(e) { return null; }
+        }
+
+        function pullUserData(userId) {
+          if (!userId) return;
+          gasGet('getUserData', { userId: userId }).then(function(res){
+            if (!res || !res.success) return;
+            window[REMOTE_WRITE_FLAG] = true;
+            try {
+              if (Array.isArray(res.bookmarks)) {
+                localStorage.setItem(BOOKMARKS_KEY, JSON.stringify(res.bookmarks));
+              }
+              if (Array.isArray(res.watchHistory)) {
+                localStorage.setItem(HISTORY_KEY, JSON.stringify(res.watchHistory));
+              }
+              if (Array.isArray(res.likes)) {
+                localStorage.setItem(LIKES_KEY, JSON.stringify(res.likes));
+              }
+              // Merge any extra profile fields into stored session (without overwriting isAdmin)
+              var u = getCurrentUser();
+              if (u && res.profile) {
+                ['name','country','avatar_url','bio','phone','birthday','gender'].forEach(function(f){
+                  if (res.profile[f] !== undefined && res.profile[f] !== '') u[f] = res.profile[f];
+                });
+                var was = window[REMOTE_WRITE_FLAG];
+                window[REMOTE_WRITE_FLAG] = true;
+                localStorage.setItem(SESSION_KEY, JSON.stringify(u));
+                window[REMOTE_WRITE_FLAG] = was;
+              }
+              localStorage.setItem(SYNCED_FLAG, userId);
+            } finally {
+              window[REMOTE_WRITE_FLAG] = false;
+            }
+            // Notify the React app to re-read storage
+            try { window.dispatchEvent(new Event('moovied-data-synced')); } catch(e){}
+          });
+        }
+
+        var pushTimers = {};
+        function debouncedPush(key, fn) {
+          if (pushTimers[key]) clearTimeout(pushTimers[key]);
+          pushTimers[key] = setTimeout(fn, 600);
+        }
+
+        function pushBookmarks() {
+          var u = getCurrentUser(); if (!u || !u.id) return;
+          var ids;
+          try { ids = JSON.parse(localStorage.getItem(BOOKMARKS_KEY) || '[]'); } catch(e){ ids = []; }
+          gasPost({ action: 'setBookmarks', userId: u.id, bookmarks: ids });
+        }
+
+        function pushHistory() {
+          var u = getCurrentUser(); if (!u || !u.id) return;
+          var items;
+          try { items = JSON.parse(localStorage.getItem(HISTORY_KEY) || '[]'); } catch(e){ items = []; }
+          // Normalise — the app may store either raw movie ids (strings) or objects
+          var norm = items.map(function(it){
+            if (typeof it === 'string') return { movie_id: it, watched_at: new Date().toISOString(), progress: 0 };
+            return {
+              movie_id: it.movie_id || it.movieId || it.id,
+              watched_at: it.watched_at || it.watchedAt || new Date().toISOString(),
+              progress: Number(it.progress) || 0
+            };
+          }).filter(function(it){ return it.movie_id; });
+          gasPost({ action: 'setWatchHistory', userId: u.id, watchHistory: norm });
+        }
+
+        function pushProfile(prevUser, nextUser) {
+          if (!nextUser || !nextUser.id) return;
+          var fields = {};
+          var changed = false;
+          ['name','country','avatar_url','bio','phone','birthday','gender'].forEach(function(f){
+            if (nextUser[f] !== undefined && (!prevUser || prevUser[f] !== nextUser[f])) {
+              fields[f] = nextUser[f]; changed = true;
+            }
+          });
+          if (changed) gasPost({ action: 'updateUserProfile', userId: nextUser.id, fields: fields });
+        }
+
+        // Override setItem so any write the React app makes also pushes to GAS
+        var _s = Storage.prototype.setItem;
+        Storage.prototype.setItem = function(k, v) {
+          var prev = null;
+          if (k === SESSION_KEY) prev = getCurrentUser();
+          _s.call(this, k, v);
+          if (window[REMOTE_WRITE_FLAG]) return;
+          if (this !== window.localStorage) return;
+          if (k === BOOKMARKS_KEY)      debouncedPush('bm',  pushBookmarks);
+          else if (k === HISTORY_KEY)   debouncedPush('hi',  pushHistory);
+          else if (k === SESSION_KEY) {
+            var nu = getCurrentUser();
+            // First time we see this user logged in on this device → pull cloud data
+            if (nu && nu.id && localStorage.getItem(SYNCED_FLAG) !== nu.id) {
+              pullUserData(nu.id);
+            }
+            // Profile fields edited locally → push to cloud
+            if (nu && prev && nu.id === prev.id) pushProfile(prev, nu);
+          }
+        };
+
+        // Initial pull on page load if user is already logged in
+        function initialSync() {
+          var u = getCurrentUser();
+          if (u && u.id) pullUserData(u.id);
+        }
+        if (document.readyState === 'loading') {
+          document.addEventListener('DOMContentLoaded', initialSync);
+        } else {
+          initialSync();
+        }
+
+        // Also re-pull when another tab logs in/out
+        window.addEventListener('storage', function(ev){
+          if (ev.key === SESSION_KEY) {
+            var u = getCurrentUser();
+            if (u && u.id && localStorage.getItem(SYNCED_FLAG) !== u.id) pullUserData(u.id);
+          }
+        });
+      } catch(e) {}
     })();
     </script>
 
