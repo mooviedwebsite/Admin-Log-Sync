@@ -425,44 +425,53 @@ a{color:inherit;text-decoration:none}
 
 <script>
 // ── Config ────────────────────────────────────────────────────────────────────
-const GAS_URLS = [
-  "https://script.google.com/macros/s/AKfycbzZEAcXt4lp0t_FVdIgJR2dKQARlIdY8MkuHjwxfadN5Wpj4v7GOQr1Xo7OhQWd3h8k/exec",
-  "https://script.google.com/macros/s/AKfycbwZh3CodBYIMDCqIFKQhT28FkRHYpaoQUNlRsstxZf8eMO_GjPpr4zCMsLbQ5-aGA3v8g/exec"
-];
 const ADMIN_EMAIL = "rawindunethsara93@gmail.com";
 const STORAGE_KEY = "moovied_admin_comments_user";
 
-// ── State ─────────────────────────────────────────────────────────────────────
-let allComments = [];
-let filtered    = [];
-let activeFilter = "all";
-let editingId   = null;
-let deletingId  = null;
-let gasUrl      = GAS_URLS[0];
+// API base — always use this server's /api prefix
+function apiBase() {
+  return window.location.origin + "/api";
+}
 
-// ── GAS helpers ───────────────────────────────────────────────────────────────
-async function gasGet(params) {
-  const url = gasUrl + "?" + new URLSearchParams(params);
-  const r = await fetch(url);
+// ── State ─────────────────────────────────────────────────────────────────────
+let allComments  = [];
+let filtered     = [];
+let activeFilter = "all";
+let editingId    = null;
+let deletingId   = null;
+
+// ── API helpers ───────────────────────────────────────────────────────────────
+async function apiGet(path, params = {}) {
+  const qs = new URLSearchParams(params).toString();
+  const r  = await fetch(`${apiBase()}${path}${qs ? "?" + qs : ""}`);
+  if (!r.ok) throw new Error("HTTP " + r.status);
   return r.json();
 }
-async function gasPost(body) {
-  const r = await fetch(gasUrl, {
+
+async function apiPost(path, body = {}) {
+  const r = await fetch(`${apiBase()}${path}`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body)
   });
+  if (!r.ok) throw new Error("HTTP " + r.status);
   return r.json();
 }
 
-// Try both GAS URLs, use whichever responds first
-async function resolveGasUrl() {
-  for (const url of GAS_URLS) {
-    try {
-      const r = await fetch(url + "?action=getStats", { signal: AbortSignal.timeout(6000) });
-      if (r.ok) { gasUrl = url; return; }
-    } catch {}
-  }
+async function apiPut(path, body = {}) {
+  const r = await fetch(`${apiBase()}${path}`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body)
+  });
+  if (!r.ok) throw new Error("HTTP " + r.status);
+  return r.json();
+}
+
+async function apiDelete(path) {
+  const r = await fetch(`${apiBase()}${path}`, { method: "DELETE" });
+  if (!r.ok) throw new Error("HTTP " + r.status);
+  return r.json();
 }
 
 // ── Auth ──────────────────────────────────────────────────────────────────────
@@ -480,8 +489,7 @@ async function doLogin() {
   errEl.style.display = "none";
 
   try {
-    await resolveGasUrl();
-    const res = await gasPost({ action: "loginUser", email, password: pass });
+    const res = await apiPost("/login", { email, password: pass });
     if (!res.success) { showLoginError(res.error || "Invalid credentials."); return; }
     if (res.user.email !== ADMIN_EMAIL) { showLoginError("This account does not have admin access."); return; }
 
@@ -507,17 +515,12 @@ function logout() {
 }
 
 // ── Boot ──────────────────────────────────────────────────────────────────────
-window.addEventListener("DOMContentLoaded", async () => {
-
+window.addEventListener("DOMContentLoaded", () => {
   const saved = localStorage.getItem(STORAGE_KEY);
   if (saved) {
     try {
       const user = JSON.parse(saved);
-      if (user.email === ADMIN_EMAIL) {
-        await resolveGasUrl();
-        startApp(user);
-        return;
-      }
+      if (user.email === ADMIN_EMAIL) { startApp(user); return; }
     } catch {}
     localStorage.removeItem(STORAGE_KEY);
   }
@@ -535,19 +538,19 @@ function startApp(user) {
 async function loadComments() {
   const listEl = document.getElementById("comments-list");
   const btn    = document.getElementById("refresh-btn");
-  listEl.innerHTML = `<div class="state-box"><div class="spinner"></div><p>Loading…</p></div>`;
+  listEl.innerHTML = `<div class="state-box"><div class="spinner"></div><p>Loading comments from server…</p></div>`;
   btn.classList.add("spinning");
 
   try {
-    const res = await gasGet({ action: "getAllComments" });
+    const res = await apiGet("/comments/all");
     btn.classList.remove("spinning");
-    if (!res.success) { listEl.innerHTML = `<div class="state-box"><p>Error: ${res.error}</p></div>`; return; }
+    if (!res.success) { listEl.innerHTML = `<div class="state-box"><p>Error: ${escHtml(res.error || "Unknown error")}</p><small>Check that your GAS deployment is live.</small></div>`; return; }
     allComments = res.comments || [];
     updateStats();
     applyFilters();
   } catch (err) {
     btn.classList.remove("spinning");
-    listEl.innerHTML = `<div class="state-box"><p>Failed to load. Check your connection.</p></div>`;
+    listEl.innerHTML = `<div class="state-box"><p>Failed to load comments.</p><small>${escHtml(err.message)}</small></div>`;
   }
 }
 
@@ -656,9 +659,8 @@ async function saveEdit() {
   btn.disabled = true; btn.textContent = "Saving…";
 
   try {
-    const res = await gasPost({ action: "editComment", id: editingId, content });
+    const res = await apiPut(`/comments/${editingId}`, { content });
     if (res.success) {
-      // Update local state
       const idx = allComments.findIndex(c => c.id === editingId);
       if (idx !== -1) { allComments[idx].content = content; allComments[idx].edited = true; }
       closeEdit();
@@ -668,8 +670,8 @@ async function saveEdit() {
     } else {
       toast(res.error || "Failed to save", "error");
     }
-  } catch {
-    toast("Connection error", "error");
+  } catch (err) {
+    toast("Connection error: " + err.message, "error");
   } finally {
     btn.disabled = false; btn.textContent = "Save Changes";
   }
@@ -695,7 +697,7 @@ async function confirmDelete() {
   btn.disabled = true; btn.textContent = "Deleting…";
 
   try {
-    const res = await gasPost({ action: "deleteComment", id: deletingId });
+    const res = await apiDelete(`/comments/${deletingId}`);
     if (res.success) {
       allComments = allComments.filter(c => c.id !== deletingId);
       closeDelete();
@@ -705,8 +707,8 @@ async function confirmDelete() {
     } else {
       toast(res.error || "Failed to delete", "error");
     }
-  } catch {
-    toast("Connection error", "error");
+  } catch (err) {
+    toast("Connection error: " + err.message, "error");
   } finally {
     btn.disabled = false; btn.textContent = "Delete";
   }
