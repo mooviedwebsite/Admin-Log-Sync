@@ -96,21 +96,60 @@
           } catch(e) { return null; }
         }
 
+        function readJson(key) {
+          try { return JSON.parse(localStorage.getItem(key) || '[]'); } catch(e){ return []; }
+        }
+
+        function mergeIdLists(local, remote) {
+          var seen = {}, out = [];
+          (remote || []).concat(local || []).forEach(function(id){
+            var k = String(id);
+            if (!seen[k]) { seen[k] = 1; out.push(k); }
+          });
+          return out;
+        }
+
+        function mergeHistory(local, remote) {
+          var byId = {};
+          (remote || []).forEach(function(it){
+            if (!it) return;
+            var mid = it.movie_id || it.movieId || it.id;
+            if (!mid) return;
+            byId[mid] = { movie_id: String(mid), watched_at: it.watched_at || '', progress: Number(it.progress)||0 };
+          });
+          (local || []).forEach(function(it){
+            if (!it) return;
+            var mid = (typeof it === 'string') ? it : (it.movie_id || it.movieId || it.id);
+            if (!mid) return;
+            var when = (typeof it === 'string') ? new Date().toISOString() : (it.watched_at || it.watchedAt || '');
+            var prog = (typeof it === 'string') ? 0 : (Number(it.progress)||0);
+            var existing = byId[mid];
+            if (!existing || (when && when > (existing.watched_at || ''))) {
+              byId[mid] = { movie_id: String(mid), watched_at: when || new Date().toISOString(), progress: prog };
+            }
+          });
+          var arr = Object.keys(byId).map(function(k){ return byId[k]; });
+          arr.sort(function(a,b){ return new Date(b.watched_at) - new Date(a.watched_at); });
+          return arr;
+        }
+
         function pullUserData(userId) {
           if (!userId) return;
           gasGet('getUserData', { userId: userId }).then(function(res){
             if (!res || !res.success) return;
+            var localBm = readJson(BOOKMARKS_KEY);
+            var localHi = readJson(HISTORY_KEY);
+            var localLk = readJson(LIKES_KEY);
+            var mergedBm = mergeIdLists(localBm, res.bookmarks);
+            var mergedHi = mergeHistory(localHi, res.watchHistory);
+            var mergedLk = mergeIdLists(localLk, res.likes);
+            var bmChanged = mergedBm.length !== (res.bookmarks || []).length;
+            var hiChanged = mergedHi.length !== (res.watchHistory || []).length;
             window[REMOTE_WRITE_FLAG] = true;
             try {
-              if (Array.isArray(res.bookmarks)) {
-                localStorage.setItem(BOOKMARKS_KEY, JSON.stringify(res.bookmarks));
-              }
-              if (Array.isArray(res.watchHistory)) {
-                localStorage.setItem(HISTORY_KEY, JSON.stringify(res.watchHistory));
-              }
-              if (Array.isArray(res.likes)) {
-                localStorage.setItem(LIKES_KEY, JSON.stringify(res.likes));
-              }
+              localStorage.setItem(BOOKMARKS_KEY, JSON.stringify(mergedBm));
+              localStorage.setItem(HISTORY_KEY,   JSON.stringify(mergedHi));
+              localStorage.setItem(LIKES_KEY,     JSON.stringify(mergedLk));
               // Merge any extra profile fields into stored session (without overwriting isAdmin)
               var u = getCurrentUser();
               if (u && res.profile) {
@@ -125,6 +164,14 @@
               localStorage.setItem(SYNCED_FLAG, userId);
             } finally {
               window[REMOTE_WRITE_FLAG] = false;
+            }
+            // If local had items the cloud didn't, push the merged set back so
+            // the cloud (and other devices) catches up.
+            if (localBm.length > 0 && bmChanged) {
+              gasPost({ action: 'setBookmarks', userId: userId, bookmarks: mergedBm });
+            }
+            if (localHi.length > 0 && hiChanged) {
+              gasPost({ action: 'setWatchHistory', userId: userId, watchHistory: mergedHi });
             }
             // Notify the React app to re-read storage
             try { window.dispatchEvent(new Event('moovied-data-synced')); } catch(e){}
