@@ -127,6 +127,7 @@ function doGet(e) {
     else if (action === "getBookmarks")     result = getBookmarks(e.parameter.userId);
     else if (action === "getMovieLikes")    result = getMovieLikes(e.parameter.movieId);
     else if (action === "getAdsConfig")     result = getAdsConfig();
+    else if (action === "getUserData")      result = getUserData(e.parameter.userId);
     // Write actions via GET (server sync — uses pre-set id from server)
     else if (action === "addComment")      result = addComment(
       e.parameter.movieId || e.parameter.movie_id,
@@ -182,6 +183,10 @@ function doPost(e) {
     else if (action === "sendEmailToUser")   result = sendEmailToUser(body.userId, body.subject, body.htmlBody);
     else if (action === "sendEmailToAll")    result = sendEmailToAll(body.subject, body.htmlBody);
     else if (action === "saveAdsConfig")     result = saveAdsConfig(body.config);
+    else if (action === "getUserData")       result = getUserData(body.userId);
+    else if (action === "updateUserProfile") result = updateUserProfile(body.userId, body.fields || body);
+    else if (action === "setBookmarks")      result = setBookmarks(body.userId, body.bookmarks || body.movieIds || []);
+    else if (action === "setWatchHistory")   result = setWatchHistory(body.userId, body.watchHistory || body.history || body.items || []);
     else if (action === "resetCommentsSheet") result = resetCommentsSheet();
     else if (action === "clearAllComments")  result = resetCommentsSheet();
     else result = { success: false, error: "Unknown action: " + action };
@@ -212,11 +217,15 @@ function registerUser(name, email, password, country) {
 }
 
 function loginUser(email, password) {
+  var ADMIN_EMAIL = "rawindunethsara93@gmail.com";
   var users = sheetToObjects(getSheet("Users"));
   var hashed = hashPassword(password);
   var user = users.find(function(u) { return u.email === email && u.password === hashed; });
   if (!user) return { success: false, error: "Invalid email or password." };
-  return { success: true, user: { id:user.id, name:user.name, email:user.email, country:user.country, created_at:user.created_at } };
+  var isAdmin = user.email === ADMIN_EMAIL
+    || user.isAdmin === true
+    || String(user.isAdmin).toLowerCase() === "true";
+  return { success: true, user: { id:user.id, name:user.name, email:user.email, country:user.country, created_at:user.created_at, isAdmin:isAdmin } };
 }
 
 function getUsers() {
@@ -785,4 +794,120 @@ function syncAllToGithub() {
 // Scheduled trigger — set up in GAS triggers (runs/hour or runs/day)
 function scheduledSync() {
   syncAllToGithub();
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+// USER DATA SYNC (cross-device)
+// ════════════════════════════════════════════════════════════════════════════
+
+var USER_PROFILE_FIELDS = ["name","country","avatar_url","bio","phone","birthday","gender"];
+
+function getUserData(userId) {
+  if (!userId) return { success:false, error:"userId required" };
+  var users = sheetToObjects(getSheet("Users"));
+  var u = users.find(function(x){ return String(x.id)===String(userId); });
+  if (!u) return { success:false, error:"User not found." };
+
+  var profile = {
+    id: u.id, name: u.name, email: u.email, country: u.country,
+    created_at: u.created_at,
+    avatar_url: u.avatar_url || "",
+    bio:        u.bio        || "",
+    phone:      u.phone      || "",
+    birthday:   u.birthday   || "",
+    gender:     u.gender     || ""
+  };
+
+  var bookmarks = [];
+  try {
+    sheetToObjects(getSheet("Bookmarks"))
+      .filter(function(r){ return String(r.user_id)===String(userId); })
+      .forEach(function(r){ if (r.movie_id) bookmarks.push(String(r.movie_id)); });
+  } catch(ex) {}
+
+  var history = [];
+  try {
+    history = sheetToObjects(getSheet("WatchHistory"))
+      .filter(function(r){ return String(r.user_id)===String(userId); })
+      .map(function(r){
+        return { movie_id:String(r.movie_id), watched_at:String(r.watched_at||""), progress:Number(r.progress)||0 };
+      });
+    history.sort(function(a,b){ return new Date(b.watched_at) - new Date(a.watched_at); });
+  } catch(ex) {}
+
+  var likes = [];
+  try {
+    sheetToObjects(getSheet("MovieLikes"))
+      .filter(function(r){ return String(r.user_id)===String(userId); })
+      .forEach(function(r){ if (r.movie_id) likes.push(String(r.movie_id)); });
+  } catch(ex) {}
+
+  return { success:true, profile:profile, bookmarks:bookmarks, watchHistory:history, likes:likes };
+}
+
+function updateUserProfile(userId, fields) {
+  if (!userId) return { success:false, error:"userId required" };
+  var sheet = getSheet("Users");
+  ensureColumns(sheet, ["id","name","email","password","country","created_at"].concat(USER_PROFILE_FIELDS));
+  var allData = sheet.getDataRange().getValues();
+  var headers = allData[0];
+  var idCol   = headers.indexOf("id");
+  for (var i = 1; i < allData.length; i++) {
+    if (String(allData[i][idCol]) === String(userId)) {
+      var row = i + 1;
+      USER_PROFILE_FIELDS.forEach(function(f){
+        if (fields && fields[f] !== undefined) {
+          var col = headers.indexOf(f);
+          if (col >= 0) sheet.getRange(row, col+1).setValue(fields[f]);
+        }
+      });
+      var users = sheetToObjects(sheet);
+      var u = users.find(function(x){ return String(x.id)===String(userId); });
+      return { success:true, profile:{
+        id:u.id, name:u.name, email:u.email, country:u.country, created_at:u.created_at,
+        avatar_url:u.avatar_url||"", bio:u.bio||"", phone:u.phone||"",
+        birthday:u.birthday||"", gender:u.gender||""
+      }};
+    }
+  }
+  return { success:false, error:"User not found." };
+}
+
+function setBookmarks(userId, movieIds) {
+  if (!userId) return { success:false, error:"userId required" };
+  if (!movieIds) movieIds = [];
+  var sheet = getSheet("Bookmarks");
+  var allData = sheet.getDataRange().getValues();
+  var headers = allData[0];
+  var userCol = headers.indexOf("user_id");
+  // Delete all existing rows for this user (bottom up)
+  for (var i = allData.length - 1; i >= 1; i--) {
+    if (String(allData[i][userCol]) === String(userId)) sheet.deleteRow(i+1);
+  }
+  var now = new Date().toISOString();
+  for (var j = 0; j < movieIds.length; j++) {
+    if (movieIds[j]) sheet.appendRow([generateId(), userId, String(movieIds[j]), now]);
+  }
+  return { success:true, count: movieIds.length };
+}
+
+function setWatchHistory(userId, items) {
+  if (!userId) return { success:false, error:"userId required" };
+  if (!items) items = [];
+  var sheet = getSheet("WatchHistory");
+  var allData = sheet.getDataRange().getValues();
+  var headers = allData[0];
+  var userCol = headers.indexOf("user_id");
+  for (var i = allData.length - 1; i >= 1; i--) {
+    if (String(allData[i][userCol]) === String(userId)) sheet.deleteRow(i+1);
+  }
+  for (var j = 0; j < items.length; j++) {
+    var it = items[j] || {};
+    var mid = it.movie_id || it.movieId || it.id;
+    if (!mid) continue;
+    var when = it.watched_at || it.watchedAt || new Date().toISOString();
+    var prog = Number(it.progress) || 0;
+    sheet.appendRow([generateId(), userId, String(mid), when, prog]);
+  }
+  return { success:true, count: items.length };
 }
