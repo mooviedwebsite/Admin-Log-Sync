@@ -18,22 +18,14 @@
     <link rel="dns-prefetch" href="https://syndication.realsrv.com">
     <link rel="dns-prefetch" href="https://a.magsrv.com">
 
-    <!-- MOOVIED API BOOTSTRAP — sets correct API URLs before React loads -->
+    <!-- MOOVIED API BOOTSTRAP — runs before React, sets correct URLs in localStorage -->
     <script>
     (function () {
-      var GAS_NEW = 'https://script.google.com/macros/s/AKfycbxIz_Cp3iSlHCOmGE_h2ucp2a4zGsOqZY6WaOhIJpR8nggw-bvajcFYU119aKbUQ5hO/exec';
-      var GAS_OLD = 'https://script.google.com/macros/s/AKfycbzZEAcXt4lp0t_FVdIgJR2dKQARlIdY8MkuHjwxfadN5Wpj4v7GOQr1Xo7OhQWd3h8k/exec';
-      var API    = window.location.origin + '/api';
-
-      // Always set these so the React app picks up the correct URLs
+      var GAS = 'https://script.google.com/macros/s/AKfycbxIz_Cp3iSlHCOmGE_h2ucp2a4zGsOqZY6WaOhIJpR8nggw-bvajcFYU119aKbUQ5hO/exec';
+      var API = window.location.origin + '/api';
       localStorage.setItem('moovied_comments_api_url', API);
       localStorage.setItem('moovied_api_server_url',   API);
-
-      // Update GAS URL to latest deployment if it's missing or still the old one
-      var curGas = localStorage.getItem('moovied_gas_url') || '';
-      if (!curGas || curGas === GAS_OLD || curGas.indexOf('AKfycbz') !== -1) {
-        localStorage.setItem('moovied_gas_url', GAS_NEW);
-      }
+      localStorage.setItem('moovied_gas_url',           GAS);
     })();
     </script>
 
