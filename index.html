@@ -133,8 +133,35 @@
           return arr;
         }
 
-        function pullUserData(userId) {
+        function fireStorageEvent(key, oldValue, newValue) {
+          try {
+            var ev = new StorageEvent('storage', {
+              key: key, oldValue: oldValue, newValue: newValue,
+              storageArea: window.localStorage, url: window.location.href
+            });
+            window.dispatchEvent(ev);
+          } catch(e) {
+            try {
+              var fallback = new Event('storage');
+              fallback.key = key; fallback.oldValue = oldValue; fallback.newValue = newValue;
+              window.dispatchEvent(fallback);
+            } catch(e2){}
+          }
+        }
+
+        function safeWrite(key, value) {
+          var prev = localStorage.getItem(key);
+          if (prev === value) return false;
+          window[REMOTE_WRITE_FLAG] = true;
+          try { localStorage.setItem(key, value); }
+          finally { window[REMOTE_WRITE_FLAG] = false; }
+          fireStorageEvent(key, prev, value);
+          return true;
+        }
+
+        function pullUserData(userId, opts) {
           if (!userId) return;
+          opts = opts || {};
           gasGet('getUserData', { userId: userId }).then(function(res){
             if (!res || !res.success) return;
             var localBm = readJson(BOOKMARKS_KEY);
@@ -143,37 +170,36 @@
             var mergedBm = mergeIdLists(localBm, res.bookmarks);
             var mergedHi = mergeHistory(localHi, res.watchHistory);
             var mergedLk = mergeIdLists(localLk, res.likes);
-            var bmChanged = mergedBm.length !== (res.bookmarks || []).length;
-            var hiChanged = mergedHi.length !== (res.watchHistory || []).length;
-            window[REMOTE_WRITE_FLAG] = true;
-            try {
-              localStorage.setItem(BOOKMARKS_KEY, JSON.stringify(mergedBm));
-              localStorage.setItem(HISTORY_KEY,   JSON.stringify(mergedHi));
-              localStorage.setItem(LIKES_KEY,     JSON.stringify(mergedLk));
-              // Merge any extra profile fields into stored session (without overwriting isAdmin)
-              var u = getCurrentUser();
-              if (u && res.profile) {
-                ['name','country','avatar_url','bio','phone','birthday','gender'].forEach(function(f){
-                  if (res.profile[f] !== undefined && res.profile[f] !== '') u[f] = res.profile[f];
-                });
-                var was = window[REMOTE_WRITE_FLAG];
-                window[REMOTE_WRITE_FLAG] = true;
-                localStorage.setItem(SESSION_KEY, JSON.stringify(u));
-                window[REMOTE_WRITE_FLAG] = was;
-              }
-              localStorage.setItem(SYNCED_FLAG, userId);
-            } finally {
-              window[REMOTE_WRITE_FLAG] = false;
+
+            safeWrite(BOOKMARKS_KEY, JSON.stringify(mergedBm));
+            safeWrite(HISTORY_KEY,   JSON.stringify(mergedHi));
+            safeWrite(LIKES_KEY,     JSON.stringify(mergedLk));
+
+            // Merge profile fields into stored session
+            var u = getCurrentUser();
+            if (u && res.profile) {
+              var changedSession = false;
+              ['name','country','avatar_url','bio','phone','birthday','gender'].forEach(function(f){
+                if (res.profile[f] !== undefined && res.profile[f] !== '' && u[f] !== res.profile[f]) {
+                  u[f] = res.profile[f]; changedSession = true;
+                }
+              });
+              if (changedSession) safeWrite(SESSION_KEY, JSON.stringify(u));
             }
-            // If local had items the cloud didn't, push the merged set back so
-            // the cloud (and other devices) catches up.
-            if (localBm.length > 0 && bmChanged) {
+
+            // Always push the merged set back so the cloud has the union.
+            // This guarantees pre-existing localStorage data on the original
+            // device gets uploaded on the very next page load after this fix.
+            var remoteBm = (res.bookmarks || []).map(String).sort().join(',');
+            var remoteHi = (res.watchHistory || []).map(function(h){return h && (h.movie_id||h.movieId||h.id);}).filter(Boolean).map(String).sort().join(',');
+            var localBmKey = mergedBm.slice().sort().join(',');
+            var localHiKey = mergedHi.map(function(h){return h.movie_id;}).sort().join(',');
+            if (localBmKey !== remoteBm) {
               gasPost({ action: 'setBookmarks', userId: userId, bookmarks: mergedBm });
             }
-            if (localHi.length > 0 && hiChanged) {
+            if (localHiKey !== remoteHi) {
               gasPost({ action: 'setWatchHistory', userId: userId, watchHistory: mergedHi });
             }
-            // Notify the React app to re-read storage
             try { window.dispatchEvent(new Event('moovied-data-synced')); } catch(e){}
           });
         }
@@ -231,8 +257,8 @@
           else if (k === HISTORY_KEY)   debouncedPush('hi',  pushHistory);
           else if (k === SESSION_KEY) {
             var nu = getCurrentUser();
-            // First time we see this user logged in on this device → pull cloud data
-            if (nu && nu.id && localStorage.getItem(SYNCED_FLAG) !== nu.id) {
+            // Login or user change → pull cloud data immediately
+            if (nu && nu.id && (!prev || prev.id !== nu.id)) {
               pullUserData(nu.id);
             }
             // Profile fields edited locally → push to cloud
@@ -251,11 +277,20 @@
           initialSync();
         }
 
+        // Periodic re-pull every 30s while the tab is visible — catches edits
+        // made on other devices.
+        setInterval(function(){
+          if (document.visibilityState === 'visible') initialSync();
+        }, 30000);
+        document.addEventListener('visibilitychange', function(){
+          if (document.visibilityState === 'visible') initialSync();
+        });
+
         // Also re-pull when another tab logs in/out
         window.addEventListener('storage', function(ev){
           if (ev.key === SESSION_KEY) {
             var u = getCurrentUser();
-            if (u && u.id && localStorage.getItem(SYNCED_FLAG) !== u.id) pullUserData(u.id);
+            if (u && u.id) pullUserData(u.id);
           }
         });
       } catch(e) {}
