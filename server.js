@@ -1,18 +1,19 @@
-const http  = require('http');
-const https = require('https');
-const fs    = require('fs');
-const path  = require('path');
-const url   = require('url');
+const http   = require('http');
+const https  = require('https');
+const fs     = require('fs');
+const path   = require('path');
+const url    = require('url');
+const crypto = require('crypto');
 
 const PORT      = 5000;
 const BASE_PATH = '/Admin-Log-Sync';
 const ROOT_DIR  = __dirname;
 
 // ── GAS & GitHub config ───────────────────────────────────────────────────────
-const GAS_URLS = [
-  'https://script.google.com/macros/s/AKfycbzZEAcXt4lp0t_FVdIgJR2dKQARlIdY8MkuHjwxfadN5Wpj4v7GOQr1Xo7OhQWd3h8k/exec',
-  'https://script.google.com/macros/s/AKfycbwZh3CodBYIMDCqIFKQhT28FkRHYpaoQUNlRsstxZf8eMO_GjPpr4zCMsLbQ5-aGA3v8g/exec',
-];
+// NEW deployment first (has all latest actions including addComment, getAllComments, etc.)
+const GAS_URL_PRIMARY   = 'https://script.google.com/macros/s/AKfycbwZh3CodBYIMDCqIFKQhT28FkRHYpaoQUNlRsstxZf8eMO_GjPpr4zCMsLbQ5-aGA3v8g/exec';
+const GAS_URL_SECONDARY = 'https://script.google.com/macros/s/AKfycbzZEAcXt4lp0t_FVdIgJR2dKQARlIdY8MkuHjwxfadN5Wpj4v7GOQr1Xo7OhQWd3h8k/exec';
+const GAS_URLS = [ GAS_URL_PRIMARY, GAS_URL_SECONDARY ];
 const GITHUB_TOKEN = process.env.GITHUB_TOKEN || '';
 const GITHUB_OWNER = 'mooviedwebsite';
 const GITHUB_REPO  = 'Admin-Log-Sync';
@@ -102,6 +103,32 @@ function fetchUrl(targetUrl, opts = {}, redirects = 0) {
   });
 }
 
+// Fetch a URL — no redirect following (returns raw status/body)
+function fetchUrlNoRedirect(targetUrl, opts = {}) {
+  return new Promise((resolve, reject) => {
+    const parsed = new URL(targetUrl);
+    const lib    = parsed.protocol === 'https:' ? https : http;
+    const options = {
+      hostname: parsed.hostname,
+      port:     parsed.port || (parsed.protocol === 'https:' ? 443 : 80),
+      path:     parsed.pathname + parsed.search,
+      method:   opts.method || 'GET',
+      headers:  opts.headers || {},
+    };
+    const req = lib.request(options, (res) => {
+      let body = '';
+      res.on('data', c => body += c);
+      res.on('end', () => {
+        try { resolve({ status: res.statusCode, body: JSON.parse(body), raw: body }); }
+        catch { resolve({ status: res.statusCode, body: null, raw: body }); }
+      });
+    });
+    req.on('error', reject);
+    if (opts.body) req.write(typeof opts.body === 'string' ? opts.body : JSON.stringify(opts.body));
+    req.end();
+  });
+}
+
 // Call GAS GET action — tries all URLs, returns first successful response
 async function gasGet(action, extra = {}) {
   const params = new URLSearchParams({ action, ...extra });
@@ -122,6 +149,32 @@ async function gasGet(action, extra = {}) {
     } catch (e) { lastErr = e.message; }
   }
   return { success: false, error: lastErr };
+}
+
+// Fire-and-forget POST to GAS — GAS always returns 302 for POST (data IS saved),
+// so we don't follow the redirect. Returns { fired: true } if GAS accepted it.
+async function gasFirePost(body) {
+  const jsonBody = JSON.stringify(body);
+  for (const gasUrl of GAS_URLS) {
+    try {
+      const r = await fetchUrlNoRedirect(gasUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Content-Length': Buffer.byteLength(jsonBody).toString(),
+          'User-Agent': 'MOOVIED-Server/1.0',
+        },
+        body: jsonBody,
+      });
+      // GAS returns 302 when it accepts and processes the POST
+      if (r.status === 302 || r.status === 200) {
+        console.log('[gasFirePost] accepted by GAS, status:', r.status, 'action:', body.action);
+        return { fired: true };
+      }
+      console.log('[gasFirePost] unexpected status:', r.status, 'action:', body.action);
+    } catch (e) { console.log('[gasFirePost] error:', e.message); }
+  }
+  return { fired: false };
 }
 
 // Call GAS POST action — tries all URLs, returns first successful response
@@ -196,23 +249,33 @@ function saveAutosyncConfig(cfg) {
 }
 
 // ── HTML injection — sets correct API URL in localStorage on page load ─────────
+// (GAS_URL_PRIMARY / GAS_URL_SECONDARY are defined above)
+
 const INJECT_SCRIPT = `<script>
 (function(){
   var api = window.location.origin + '/api';
-  var old = 'https://a16cbf22-021e-4fbd-a6d1-5c8d3c7e4244-00-923mtzjoxrcz.worf.replit.dev/api';
-  function fix(k) {
-    var v = localStorage.getItem(k);
-    if (!v || v === old) localStorage.setItem(k, api);
+  var oldApi = 'https://a16cbf22-021e-4fbd-a6d1-5c8d3c7e4244-00-923mtzjoxrcz.worf.replit.dev/api';
+  var gasNew = '${GAS_URL_PRIMARY}';
+  var gasOld = '${GAS_URL_SECONDARY}';
+
+  // Always point comments & server URLs to THIS server's proxy
+  localStorage.setItem('moovied_comments_api_url', api);
+  localStorage.setItem('moovied_api_server_url', api);
+
+  // Point the GAS URL to the latest deployment (fixes "GAS not connected" banner)
+  var curGas = localStorage.getItem('moovied_gas_url');
+  if (!curGas || curGas === gasOld) {
+    localStorage.setItem('moovied_gas_url', gasNew);
   }
-  fix('moovied_comments_api_url');
-  fix('moovied_api_server_url');
 })();
 </script>`;
 
+const INJECT_MARKER = '<!-- moovied-api-inject -->';
 function injectIntoHtml(buf) {
   const html = buf.toString('utf8');
-  if (html.includes(INJECT_SCRIPT)) return buf;
-  return Buffer.from(html.replace('</head>', INJECT_SCRIPT + '</head>'), 'utf8');
+  if (html.includes(INJECT_MARKER)) return buf;
+  const tag = INJECT_MARKER + '\n' + INJECT_SCRIPT;
+  return Buffer.from(html.replace('</head>', tag + '\n</head>'), 'utf8');
 }
 
 // ── API route handler ─────────────────────────────────────────────────────────
@@ -246,39 +309,61 @@ async function handleApi(req, res, apiPath) {
   }
 
   // ── POST /api/comments ── (add comment) ───────────────────────────────────
+  // GAS POST always returns 302 (data IS saved to sheet). We build the response
+  // on the server side and return immediately, then fire-and-forget to GAS.
   if (apiPath === '/comments' && method === 'POST') {
     const body = await readBody(req);
-    const r = await gasPost({
-      action:       'addComment',
-      movieId:      body.movieId,
-      userId:       body.userId,
-      userName:     body.userName,
+    if (!body.movieId || !body.userId || !body.content) {
+      return json(res, { success: false, error: 'movieId, userId, content are required' }, 400);
+    }
+    const commentId = crypto.randomUUID();
+    const timestamp = new Date().toISOString();
+    const comment = {
+      id:           commentId,
+      movie_id:     body.movieId,
+      user_id:      body.userId,
+      user_name:    body.userName || 'Anonymous',
       content:      body.content,
-      reply_to:     body.reply_to     || '',
-      reply_to_name:body.reply_to_name|| '',
-    });
-    return json(res, r);
+      timestamp,
+      likes:        0,
+      edited:       false,
+    };
+    if (body.reply_to)      comment.reply_to      = body.reply_to;
+    if (body.reply_to_name) comment.reply_to_name = body.reply_to_name;
+
+    // Fire to GAS (saves to Google Sheet) — don't wait for redirect chain
+    gasFirePost({
+      action:        'addComment',
+      movieId:       body.movieId,
+      userId:        body.userId,
+      userName:      body.userName || 'Anonymous',
+      content:       body.content,
+      reply_to:      body.reply_to      || '',
+      reply_to_name: body.reply_to_name || '',
+    }).catch(() => {});
+
+    return json(res, { success: true, comment });
   }
 
   // ── PUT /api/comments/:id ── (edit comment) ───────────────────────────────
   const editMatch = apiPath.match(/^\/comments\/([^/]+)$/);
   if (editMatch && method === 'PUT') {
     const body = await readBody(req);
-    const r = await gasPost({ action: 'editComment', id: editMatch[1], content: body.content });
-    return json(res, r);
+    gasFirePost({ action: 'editComment', id: editMatch[1], content: body.content }).catch(() => {});
+    return json(res, { success: true });
   }
 
   // ── DELETE /api/comments/:id ── ───────────────────────────────────────────
   if (editMatch && method === 'DELETE') {
-    const r = await gasPost({ action: 'deleteComment', id: editMatch[1] });
-    return json(res, r);
+    gasFirePost({ action: 'deleteComment', id: editMatch[1] }).catch(() => {});
+    return json(res, { success: true });
   }
 
   // ── POST /api/comments/:id/like ── ───────────────────────────────────────
   const likeMatch = apiPath.match(/^\/comments\/([^/]+)\/like$/);
   if (likeMatch && method === 'POST') {
-    const r = await gasPost({ action: 'likeComment', id: likeMatch[1] });
-    return json(res, r);
+    gasFirePost({ action: 'likeComment', id: likeMatch[1] }).catch(() => {});
+    return json(res, { success: true });
   }
 
   // ── PUT /api/github/push ── (image / file upload) ─────────────────────────
