@@ -1,33 +1,21 @@
 [
   {
-    "id": "85a8ba20-f4d2-42f7-bf3e-2136ad52e496",
-    "movie_id": "movie-test-1",
-    "user_id": "user-123",
-    "user_name": "TestUser",
-    "content": "This is a great movie!",
-    "timestamp": "2026-04-16T12:51:30.915Z",
-    "likes": 0,
-    "edited": false
-  },
-  {
-    "id": "2a7431dd-d95f-4e19-b6fe-0d024d8c7345",
-    "movie_id": "avengers-2025",
-    "user_id": "uid-abc",
-    "user_name": "Rawnidu",
-    "content": "Amazing movie! Must watch.",
-    "timestamp": "2026-04-16T13:02:06.509Z",
-    "likes": 0,
-    "edited": false,
-    "reply_to": "",
-    "reply_to_name": ""
-  },
-  {
-    "id": "ca11bb9c-c489-4c60-b57d-3339db8688f9",
+    "id": "3ded7c65-3fca-4f21-812e-93d08ba61e49",
     "movie_id": "moovied-test",
     "user_id": "user-777",
     "user_name": "Rawnidu",
     "content": "Real test comment — checking GAS sheet sync!",
-    "timestamp": "2026-04-16T13:04:07.805Z",
+    "timestamp": "2026-04-16T13:04:11.667Z",
+    "likes": 0,
+    "edited": false
+  },
+  {
+    "id": "54655e11-068a-4d88-8d95-cb7d60245539",
+    "movie_id": "avengers-infinity",
+    "user_id": "user-real",
+    "user_name": "Rawnidu",
+    "content": "Best movie ever made!",
+    "timestamp": "2026-04-16T13:10:53.148Z",
     "likes": 0,
     "edited": false,
     "reply_to": "",
