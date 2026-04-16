@@ -8,17 +8,5 @@
     "timestamp": "2026-04-16T13:04:11.667Z",
     "likes": 0,
     "edited": false
-  },
-  {
-    "id": "54655e11-068a-4d88-8d95-cb7d60245539",
-    "movie_id": "avengers-infinity",
-    "user_id": "user-real",
-    "user_name": "Rawnidu",
-    "content": "Best movie ever made!",
-    "timestamp": "2026-04-16T13:10:53.148Z",
-    "likes": 0,
-    "edited": false,
-    "reply_to": "",
-    "reply_to_name": ""
   }
 ]
