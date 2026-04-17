@@ -341,6 +341,54 @@
 
     <script type="module" crossorigin src="/Admin-Log-Sync/assets/index-BuQk6LBC.js"></script>
     <link rel="stylesheet" crossorigin href="/Admin-Log-Sync/assets/index-aJ6FqB6X.css">
+    <style>
+      /* MOOVIED premium download cards */
+      .mvd-dl-card{position:relative;overflow:hidden;background:rgba(255,255,255,0.035);border:1px solid rgba(255,255,255,0.08);border-radius:18px;padding:14px 16px;transition:border-color .5s,transform .3s;margin-bottom:10px;font-family:-apple-system,BlinkMacSystemFont,'Inter',sans-serif}
+      .mvd-dl-card:hover{transform:translateY(-2px)}
+      .mvd-dl-card.mvd-active{border-color:rgba(74,222,128,0.2)}
+      .mvd-dl-card.mvd-done{border-color:rgba(74,222,128,0.35)}
+      .mvd-dl-card::before{content:"";position:absolute;top:0;left:10%;right:10%;height:1px;background:linear-gradient(90deg,transparent,rgba(255,255,255,0.14),transparent);pointer-events:none}
+      .mvd-dl-amb{position:absolute;bottom:-50px;left:50%;transform:translateX(-50%);width:300px;height:90px;border-radius:50%;background:radial-gradient(ellipse,rgba(34,197,94,0.2) 0%,transparent 68%);pointer-events:none;opacity:0;transition:opacity .7s}
+      .mvd-dl-card.mvd-active .mvd-dl-amb,.mvd-dl-card.mvd-done .mvd-dl-amb{opacity:1}
+      .mvd-dl-row{display:flex;align-items:center;gap:14px;position:relative;z-index:1}
+      .mvd-dl-icon{width:44px;height:44px;border-radius:13px;flex-shrink:0;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.09);display:flex;align-items:center;justify-content:center;transition:background .4s,border-color .4s,color .4s;color:rgba(255,255,255,0.5)}
+      .mvd-dl-card.mvd-done .mvd-dl-icon{background:rgba(34,197,94,0.15);border-color:rgba(34,197,94,0.3);color:#4ade80}
+      .mvd-dl-info{flex:1;min-width:0}
+      .mvd-dl-title{font-size:13px;font-weight:500;color:rgba(255,255,255,0.85);letter-spacing:.1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+      .mvd-dl-meta{display:flex;align-items:center;gap:7px;margin-top:4px;flex-wrap:wrap}
+      .mvd-dl-badge{font-size:9.5px;font-weight:700;letter-spacing:.5px;padding:2px 7px;border-radius:5px;border:1px solid}
+      .mvd-dl-sep{color:rgba(255,255,255,0.18);font-size:9px}
+      .mvd-dl-mt{font-size:11px;color:rgba(255,255,255,0.3)}
+      .mvd-dl-spd{font-size:11px;color:rgba(255,255,255,0.4);font-variant-numeric:tabular-nums}
+      .mvd-dl-track{margin-top:10px;height:4px;background:rgba(255,255,255,0.06);border-radius:99px;position:relative}
+      .mvd-dl-fill{height:100%;width:0%;border-radius:99px;background:linear-gradient(90deg,#15803d,#22c55e,#86efac,#22c55e,#15803d);background-size:300% 100%;transition:width .08s linear}
+      .mvd-dl-fill.mvd-shine{animation:mvdShine 1.4s linear infinite}
+      @keyframes mvdShine{0%{background-position:100% 0}100%{background-position:-100% 0}}
+      .mvd-dl-fill.mvd-done-fill{background:#22c55e;animation:none;box-shadow:0 0 12px rgba(34,197,94,0.5)}
+      .mvd-dl-right{display:flex;align-items:center;gap:10px;flex-shrink:0}
+      .mvd-dl-pct{font-size:11px;color:rgba(255,255,255,0.28);min-width:32px;text-align:right;font-variant-numeric:tabular-nums;transition:color .4s}
+      .mvd-dl-card.mvd-done .mvd-dl-pct{color:#4ade80}
+      .mvd-dl-btn{font-size:11px;font-weight:700;letter-spacing:.3px;padding:8px 16px;border-radius:10px;border:1px solid rgba(255,255,255,0.14);background:rgba(255,255,255,0.06);color:rgba(255,255,255,0.8);cursor:pointer;white-space:nowrap;transition:all .25s;font-family:inherit}
+      .mvd-dl-btn:hover:not(:disabled){background:rgba(255,255,255,0.1);border-color:rgba(255,255,255,0.2)}
+      .mvd-dl-btn.mvd-go{background:#fff;color:#0a0a0a;border-color:#fff}
+      .mvd-dl-btn.mvd-go:hover{background:#e5e5e5}
+      .mvd-dl-btn.mvd-running{background:#22c55e;color:#fff;border-color:#22c55e;box-shadow:0 0 18px rgba(34,197,94,0.45)}
+      .mvd-dl-btn.mvd-finished{background:rgba(34,197,94,0.15);color:#4ade80;border-color:rgba(34,197,94,0.35);cursor:default;box-shadow:none}
+      .mvd-dl-btn:disabled{cursor:default}
+      .mvd-dl-scan{position:absolute;left:0;right:0;height:2px;top:-2px;background:linear-gradient(90deg,transparent,rgba(74,222,128,0.6),transparent);pointer-events:none;opacity:0}
+      .mvd-dl-card.mvd-done .mvd-dl-scan{animation:mvdScan 1s ease-in forwards}
+      @keyframes mvdScan{0%{top:-2px;opacity:.7}100%{top:100%;opacity:0}}
+      @media (max-width:640px){
+        .mvd-dl-card{padding:11px 12px;border-radius:14px;margin-bottom:8px}
+        .mvd-dl-row{gap:10px}
+        .mvd-dl-icon{width:36px;height:36px;border-radius:10px}
+        .mvd-dl-title{font-size:12px}
+        .mvd-dl-badge{font-size:9px;padding:1.5px 6px}
+        .mvd-dl-mt,.mvd-dl-spd{font-size:10px}
+        .mvd-dl-btn{padding:6px 12px;font-size:10px;border-radius:8px}
+        .mvd-dl-pct{font-size:10px;min-width:28px}
+      }
+    </style>
   </head>
   <body>
     <div id="root"></div>
