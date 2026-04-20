@@ -278,8 +278,13 @@
     } catch(e){ return "/"; }
   }
   function isAllowedRoute(){
-    var p = currentRoute();
-    return ALLOWED.indexOf(p) >= 0;
+    var p = (currentRoute() || "/").toLowerCase();
+    for (var i = 0; i < ALLOWED.length; i++) {
+      var a = ALLOWED[i].toLowerCase();
+      if (p === a) return true;
+      if (a !== "/" && (p === a || p.indexOf(a + "/") === 0)) return true;
+    }
+    return false;
   }
   function applyRouteVisibility(){
     var el = document.getElementById("mv-footer");
