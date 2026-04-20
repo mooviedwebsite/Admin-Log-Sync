@@ -261,15 +261,29 @@
     });
   }
 
-  function isAdminRoute(){
+  // Footer is shown ONLY on these app routes (after stripping the GitHub Pages basename)
+  var ALLOWED = ["/", "/movies", "/search", "/profile"];
+  function currentRoute(){
     try {
-      var p = (location.pathname || "") + (location.hash || "");
-      return /\/admin(\b|\/|$|\?|#)/i.test(p) || /#\/?admin/i.test(p);
-    } catch(e){ return false; }
+      var p = location.pathname || "/";
+      // Strip basename like "/Admin-Log-Sync"
+      p = p.replace(/^\/Admin-Log-Sync(\/|$)/i, "/");
+      // Also support hash routing (#/path)
+      var h = (location.hash || "").replace(/^#/, "");
+      if (h && h.charAt(0) === "/") p = h;
+      // Normalize: remove trailing slash (except root) and query
+      p = p.split("?")[0].split("#")[0];
+      if (p.length > 1 && p.charAt(p.length - 1) === "/") p = p.slice(0, -1);
+      return p || "/";
+    } catch(e){ return "/"; }
+  }
+  function isAllowedRoute(){
+    var p = currentRoute();
+    return ALLOWED.indexOf(p) >= 0;
   }
   function applyRouteVisibility(){
     var el = document.getElementById("mv-footer");
-    if (el) el.style.display = isAdminRoute() ? "none" : "";
+    if (el) el.style.display = isAllowedRoute() ? "" : "none";
   }
   function watchRoute(){
     window.addEventListener("popstate", applyRouteVisibility);
@@ -282,14 +296,14 @@
   }
 
   function init(){
-    if (isAdminRoute()) { watchRoute(); return; }
     watchRoute();
-    // Render with cached or defaults FIRST (instant paint)
+    // Always render so SPA navigation can simply toggle visibility
     var cached = getCachedConfig();
     render(cached || DEFAULTS);
+    applyRouteVisibility();
     // Then fetch fresh in background
     fetchConfig().then(function(cfg){
-      if (cfg) { setCachedConfig(cfg); render(cfg); }
+      if (cfg) { setCachedConfig(cfg); render(cfg); applyRouteVisibility(); }
     }).catch(function(){});
   }
 
