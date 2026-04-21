@@ -528,6 +528,12 @@ function addMovie(data) {
   });
   sheet.appendRow(row);
   invalidateMoviesCache();
+  // Also push as a JSON post file in the GitHub repo (posts/movies or posts/tv-series)
+  try {
+    var movieObj = {};
+    headers.forEach(function(h, idx){ movieObj[h] = row[idx]; });
+    pushPostToGitHub(movieObj, "Add");
+  } catch(ex){}
   return { success:true, id:id };
 }
 
@@ -550,6 +556,14 @@ function editMovie(data) {
       });
       sheet.getRange(rowNum, 1, 1, d.headers.length).setValues([newRow]);
       invalidateMoviesCache();
+      // Push updated post file to GitHub. If title/type changed, remove old file first.
+      try {
+        var oldObj = {}, newObj = {};
+        d.headers.forEach(function(h, j){ oldObj[h] = d.rows[i][j]; newObj[h] = newRow[j]; });
+        var oldPath = postFilePath(oldObj), newPath = postFilePath(newObj);
+        if (oldPath !== newPath) { try { githubDeleteFile(oldPath, "Rename: " + (oldObj.title||"")); } catch(e){} }
+        pushPostToGitHub(newObj, "Edit");
+      } catch(ex){}
       return { success:true };
     }
   }
@@ -562,8 +576,12 @@ function deleteMovie(id) {
   var idCol = d.headers.indexOf("id");
   for (var i = 0; i < d.rows.length; i++) {
     if (String(d.rows[i][idCol]) === String(id)) {
+      // Capture row data before deletion so we can remove the post file too
+      var movieObj = {};
+      d.headers.forEach(function(h, j){ movieObj[h] = d.rows[i][j]; });
       sheet.deleteRow(i + 2);
       invalidateMoviesCache();
+      try { deletePostFromGitHub(movieObj); } catch(ex){}
       return { success:true };
     }
   }
@@ -984,6 +1002,84 @@ function githubPushJson(filePath, data, message) {
     muteHttpExceptions: true
   });
   return resp.getResponseCode() === 200 || resp.getResponseCode() === 201;
+}
+
+// ── POST FILES (per-movie / per-series JSON in repo) ─────────────────────────
+function slugify(s) {
+  s = String(s || "").toLowerCase().trim();
+  s = s.replace(/[^a-z0-9\s-]/g, "").replace(/\s+/g, "-").replace(/-+/g, "-");
+  return s.replace(/^-+|-+$/g, "") || "untitled";
+}
+
+function postFilePath(movie) {
+  var type = String(movie.type || "movie").toLowerCase();
+  var folder = (type.indexOf("series") >= 0 || type.indexOf("tv") >= 0) ? "tv-series" : "movies";
+  var slug = slugify(movie.title);
+  return "posts/" + folder + "/" + slug + "-" + movie.id + ".json";
+}
+
+function githubGetFileSha(filePath) {
+  var token = getGithubToken(); if (!token) return null;
+  var apiUrl = "https://api.github.com/repos/" + GITHUB_OWNER + "/" + GITHUB_REPO + "/contents/" + filePath + "?ref=" + GITHUB_BRANCH;
+  try {
+    var resp = UrlFetchApp.fetch(apiUrl, {
+      headers: { Authorization:"token "+token, Accept:"application/vnd.github.v3+json" },
+      muteHttpExceptions: true
+    });
+    if (resp.getResponseCode() === 200) return JSON.parse(resp.getContentText()).sha || null;
+  } catch(ex){}
+  return null;
+}
+
+function githubDeleteFile(filePath, message) {
+  var token = getGithubToken(); if (!token) return false;
+  var sha = githubGetFileSha(filePath); if (!sha) return false;
+  var apiUrl = "https://api.github.com/repos/" + GITHUB_OWNER + "/" + GITHUB_REPO + "/contents/" + filePath;
+  try {
+    var resp = UrlFetchApp.fetch(apiUrl, {
+      method: "delete",
+      headers: { Authorization:"token "+token, Accept:"application/vnd.github.v3+json", "Content-Type":"application/json" },
+      payload: JSON.stringify({ message: message || "Delete post", sha: sha, branch: GITHUB_BRANCH }),
+      muteHttpExceptions: true
+    });
+    return resp.getResponseCode() === 200;
+  } catch(ex){ return false; }
+}
+
+function pushPostToGitHub(movie, action) {
+  if (!movie || !movie.id || !movie.title) return false;
+  try {
+    var path = postFilePath(movie);
+    // Strip empty fields for cleaner files
+    var clean = {};
+    Object.keys(movie).forEach(function(k){
+      if (movie[k] !== "" && movie[k] !== null && movie[k] !== undefined && k !== "action" && k !== "adminSecret") {
+        clean[k] = movie[k];
+      }
+    });
+    clean.updated_at = new Date().toISOString();
+    var msg = (action || "Update") + " post: " + movie.title;
+    return githubPushJson(path, clean, msg);
+  } catch(ex){ return false; }
+}
+
+function deletePostFromGitHub(movie) {
+  try { return githubDeleteFile(postFilePath(movie), "Delete post: " + (movie.title || movie.id)); }
+  catch(ex){ return false; }
+}
+
+// Find a movie row by id (helper for delete to know slug/type before removal)
+function findMovieById(id) {
+  var d = readAll(getSheet("Movies"));
+  var idCol = d.headers.indexOf("id");
+  for (var i = 0; i < d.rows.length; i++) {
+    if (String(d.rows[i][idCol]) === String(id)) {
+      var obj = {};
+      d.headers.forEach(function(h, j){ obj[h] = d.rows[i][j]; });
+      return obj;
+    }
+  }
+  return null;
 }
 
 function syncCommentsToGithub() {
