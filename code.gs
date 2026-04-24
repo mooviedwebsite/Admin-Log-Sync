@@ -884,14 +884,49 @@ function getActivityLogs() {
 function getStats() {
   var cached = cacheGet("stats:all");
   if (cached) return cached;
-  var stats = {
-    users:        Math.max(0, getSheet("Users").getLastRow() - 1),
-    movies:       Math.max(0, getSheet("Movies").getLastRow() - 1),
-    comments:     Math.max(0, getSheet("Comments").getLastRow() - 1),
-    likes:        Math.max(0, getSheet("MovieLikes").getLastRow() - 1),
-    watchHistory: Math.max(0, getSheet("WatchHistory").getLastRow() - 1)
+
+  var totalUsers    = Math.max(0, getSheet("Users").getLastRow() - 1);
+  var totalMovies   = Math.max(0, getSheet("Movies").getLastRow() - 1);
+  var totalComments = Math.max(0, getSheet("Comments").getLastRow() - 1);
+  var totalLikes    = Math.max(0, getSheet("MovieLikes").getLastRow() - 1);
+  var totalWatch    = Math.max(0, getSheet("WatchHistory").getLastRow() - 1);
+
+  // Sum views column from Movies sheet
+  var totalViews = 0;
+  try {
+    var moviesSheet = getSheet("Movies");
+    var lastRow = moviesSheet.getLastRow();
+    if (lastRow > 1) {
+      var headers = moviesSheet.getRange(1, 1, 1, moviesSheet.getLastColumn()).getValues()[0];
+      var viewsCol = headers.indexOf("views");
+      if (viewsCol >= 0) {
+        var vals = moviesSheet.getRange(2, viewsCol + 1, lastRow - 1, 1).getValues();
+        for (var i = 0; i < vals.length; i++) {
+          totalViews += Number(vals[i][0]) || 0;
+        }
+      }
+    }
+  } catch(ex) {}
+
+  // Frontend reads top-level totalUsers/totalMovies/totalViews/totalComments,
+  // so expose those flat fields. Keep nested `stats` for backward-compat.
+  var out = {
+    success:       true,
+    totalUsers:    totalUsers,
+    totalMovies:   totalMovies,
+    totalViews:    totalViews,
+    totalComments: totalComments,
+    totalLikes:    totalLikes,
+    totalWatch:    totalWatch,
+    stats: {
+      users:        totalUsers,
+      movies:       totalMovies,
+      comments:     totalComments,
+      likes:        totalLikes,
+      watchHistory: totalWatch,
+      views:        totalViews
+    }
   };
-  var out = { success:true, stats:stats };
   cachePut("stats:all", out, TTL_STATS);
   return out;
 }
