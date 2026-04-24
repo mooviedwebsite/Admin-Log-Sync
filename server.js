@@ -534,8 +534,15 @@ function isAssetPath(p) {
 }
 
 function serveFile(res, fullPath, ext) {
+  // Path-traversal guard: resolved file must stay inside ROOT_DIR
+  const resolved = path.resolve(fullPath);
+  if (resolved !== ROOT_DIR && !resolved.startsWith(ROOT_DIR + path.sep)) {
+    res.writeHead(403, { 'Content-Type': 'text/plain' });
+    res.end('Forbidden');
+    return;
+  }
   const mime = MIME[ext] || 'application/octet-stream';
-  fs.readFile(fullPath, (err, data) => {
+  fs.readFile(resolved, (err, data) => {
     if (err) {
       if (err.code === 'ENOENT') {
         // SPA fallback: serve index.html for unknown routes (no extension)
@@ -595,6 +602,9 @@ const server = http.createServer(async (req, res) => {
   // ── Legacy /Admin-Log-Sync/* → clean URL redirect ───────────────────────
   if (urlPath === BASE_PATH || urlPath.startsWith(BASE_PATH + '/')) {
     let stripped = urlPath.slice(BASE_PATH.length) || '/';
+    // Collapse leading slashes to avoid protocol-relative open-redirect
+    // payloads like /Admin-Log-Sync//evil.com → //evil.com
+    stripped = '/' + stripped.replace(/^\/+/, '');
     if (stripped === '/player.html') stripped = '/watch';
     res.writeHead(301, { Location: stripped + search });
     res.end();
