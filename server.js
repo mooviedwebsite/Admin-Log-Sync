@@ -20,6 +20,69 @@ const GITHUB_BRANCH = 'main';
 const DATA_DIR          = path.join(ROOT_DIR, 'data');
 const COMMENTS_FILE     = path.join(DATA_DIR, 'comments.json');
 const AUTOSYNC_CFG_FILE = path.join(ROOT_DIR, '.local', 'autosync-config.json');
+const POSTS_DIR         = path.join(ROOT_DIR, 'posts');
+
+// ── Pretty URL slug system ────────────────────────────────────────────────────
+// Maps human-readable slugs (e.g. "oppenheimer-2023") to internal movie IDs
+// (e.g. "mov_oppenheimer_2023" or a UUID). Built at startup from posts/*.json
+// and refreshed in the background from GAS getMovies.
+
+let SLUG_BY_ID = {};   // id   → slug      ("mov_x" → "x-2023")
+let ID_BY_SLUG = {};   // slug → id        ("x-2023" → "mov_x")
+
+function slugify(title, year) {
+  if (!title) return '';
+  const base = String(title)
+    .toLowerCase()
+    .normalize('NFKD').replace(/[\u0300-\u036f]/g, '')   // strip accents
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '');
+  if (!base) return '';
+  return year ? `${base}-${String(year).trim()}` : base;
+}
+
+function registerMovie(id, title, year) {
+  if (!id || !title) return;
+  let slug = slugify(title, year);
+  if (!slug) return;
+  // Avoid clobbering an existing slug owned by a different id
+  if (ID_BY_SLUG[slug] && ID_BY_SLUG[slug] !== id) {
+    let n = 2;
+    while (ID_BY_SLUG[`${slug}-${n}`] && ID_BY_SLUG[`${slug}-${n}`] !== id) n++;
+    slug = `${slug}-${n}`;
+  }
+  SLUG_BY_ID[id]   = slug;
+  ID_BY_SLUG[slug] = id;
+}
+
+function buildSlugMapsFromPosts() {
+  for (const sub of ['movies', 'tv-series']) {
+    const dir = path.join(POSTS_DIR, sub);
+    if (!fs.existsSync(dir)) continue;
+    for (const f of fs.readdirSync(dir)) {
+      if (!f.endsWith('.json')) continue;
+      try {
+        const obj = JSON.parse(fs.readFileSync(path.join(dir, f), 'utf8'));
+        registerMovie(obj.id, obj.title, obj.year);
+      } catch {}
+    }
+  }
+}
+
+async function refreshSlugMapsFromGAS() {
+  try {
+    const r = await gasGet('getMovies');
+    if (r && r.success && Array.isArray(r.movies)) {
+      // Wipe and rebuild so deleted movies disappear from the map
+      SLUG_BY_ID = {}; ID_BY_SLUG = {};
+      buildSlugMapsFromPosts();   // local first (covers offline GAS)
+      r.movies.forEach(m => registerMovie(m.id, m.title, m.year));
+      console.log(`[slugs] rebuilt: ${Object.keys(ID_BY_SLUG).length} pretty URLs`);
+    }
+  } catch (e) {
+    console.log('[slugs] GAS refresh failed:', e.message);
+  }
+}
 
 function ensureDir(dir) {
   try { fs.mkdirSync(dir, { recursive: true }); } catch {}
@@ -264,13 +327,101 @@ const INJECT_SCRIPT = `<script>
 </script>`;
 
 const INJECT_MARKER = '<!-- moovied-inject -->';
+
+// Pretty URL inject — runs on every page load. Provides a slug↔id map and
+// hooks fetch + history so URLs in the address bar always look like
+// /movie/oppenheimer-2023 instead of /movie/<UUID>.
+function buildSlugInject() {
+  const data = JSON.stringify({ byId: SLUG_BY_ID, bySlug: ID_BY_SLUG });
+  return `<script>
+(function(){
+  try {
+    window.__MOOVIED_SLUGS__ = ${data};
+    var M = window.__MOOVIED_SLUGS__;
+
+    // Pretty-print a path: /movie/<id> → /movie/<slug>, and /watch?...id=<id> → ...id=<slug>
+    function pretty(p) {
+      try {
+        var m = /^(\\/movie\\/)([^\\/?#]+)(.*)$/.exec(p);
+        if (m && M.byId[decodeURIComponent(m[2])]) {
+          return m[1] + M.byId[decodeURIComponent(m[2])] + m[3];
+        }
+      } catch(e){}
+      return p;
+    }
+
+    // Internal-form a path: /movie/<slug> → /movie/<id> (used to feed React via params)
+    function internal(p) {
+      try {
+        var m = /^(\\/movie\\/)([^\\/?#]+)(.*)$/.exec(p);
+        if (m && M.bySlug[decodeURIComponent(m[2])]) {
+          return m[1] + M.bySlug[decodeURIComponent(m[2])] + m[3];
+        }
+      } catch(e){}
+      return p;
+    }
+
+    // (1) Hook history so any UUID URL React tries to push becomes a slug URL
+    var _ps = history.pushState.bind(history);
+    var _rs = history.replaceState.bind(history);
+    history.pushState    = function(s,t,u){ if (typeof u === 'string') u = pretty(u); return _ps(s,t,u); };
+    history.replaceState = function(s,t,u){ if (typeof u === 'string') u = pretty(u); return _rs(s,t,u); };
+
+    // (2) Hook anchor clicks so right-click → copy link uses the slug version
+    document.addEventListener('click', function(ev){
+      var a = ev.target && ev.target.closest && ev.target.closest('a[href]');
+      if (!a) return;
+      var href = a.getAttribute('href');
+      if (!href || href[0] !== '/') return;
+      var p = pretty(href);
+      if (p !== href) a.setAttribute('href', p);
+    }, true);
+
+    // (3) Rewrite address bar on initial load if it contains a raw UUID
+    (function(){
+      var p = location.pathname;
+      var pp = pretty(p);
+      if (pp !== p) _rs(history.state, '', pp + location.search + location.hash);
+    })();
+
+    // (4) Hook fetch — when the bundled code calls GAS with id=<slug>,
+    //     translate the slug back to the real id transparently.
+    var _f = window.fetch.bind(window);
+    window.fetch = function(input, init) {
+      try {
+        var url = typeof input === 'string' ? input : (input && input.url) || '';
+        if (url.indexOf('script.google.com') !== -1 && url.indexOf('id=') !== -1) {
+          var u = new URL(url);
+          var rawId = u.searchParams.get('id');
+          if (rawId && M.bySlug[rawId]) {
+            u.searchParams.set('id', M.bySlug[rawId]);
+            input = u.toString();
+          }
+        }
+      } catch(e){}
+      return _f(input, init);
+    };
+  } catch(e) { /* never break the page */ }
+})();
+</script>`;
+}
+
+// Sentinel that marks the actual injected payload (vs the empty slot marker
+// already present inside index.html as `<!-- moovied-inject -->`).
+const INJECT_DONE_SENTINEL = '<!-- moovied-inject:done -->';
+
 function injectIntoHtml(buf) {
-  const html = buf.toString('utf8');
-  if (html.includes(INJECT_MARKER)) return buf;
-  return Buffer.from(
-    html.replace('<head>', '<head>\n' + INJECT_MARKER + '\n' + INJECT_SCRIPT),
-    'utf8'
-  );
+  let html = buf.toString('utf8');
+  if (html.includes(INJECT_DONE_SENTINEL)) return buf;
+  const payload = INJECT_DONE_SENTINEL + '\n' + INJECT_SCRIPT + '\n' + buildSlugInject();
+  if (html.includes(INJECT_MARKER)) {
+    // Replace the empty slot marker with our payload (preserves placement in <head>)
+    html = html.replace(INJECT_MARKER, payload);
+  } else {
+    // No slot found — fall back to inserting right after <head>
+    html = html.replace('<head>', '<head>\n' + payload);
+  }
+  return Buffer.from(html, 'utf8');
 }
 
 // ── API handler ───────────────────────────────────────────────────────────────
@@ -482,6 +633,19 @@ async function handleApi(req, res, apiPath) {
     return json(res, { success: true, config: merged });
   }
 
+  // ══════════════════════════════════════════════════════════════════════════
+  // SLUG MAP — pretty URLs
+  // ══════════════════════════════════════════════════════════════════════════
+
+  if (apiPath === '/slugs' && method === 'GET') {
+    return json(res, { success: true, byId: SLUG_BY_ID, bySlug: ID_BY_SLUG });
+  }
+
+  if (apiPath === '/slugs/refresh' && method === 'POST') {
+    await refreshSlugMapsFromGAS();
+    return json(res, { success: true, count: Object.keys(ID_BY_SLUG).length });
+  }
+
   if (apiPath === '/autosync/trigger' && method === 'POST') {
     // Pull fresh data from GAS and update local cache
     const cfg = loadAutosyncConfig();
@@ -633,5 +797,10 @@ server.listen(PORT, '0.0.0.0', async () => {
   console.log(`API:     http://0.0.0.0:${PORT}/api/*`);
   console.log(`Legacy:  /Admin-Log-Sync/* → 301 redirected to clean URL`);
   ensureDir(DATA_DIR);
+  buildSlugMapsFromPosts();
+  console.log(`[slugs] loaded ${Object.keys(ID_BY_SLUG).length} pretty URLs from posts/`);
+  // Refresh from GAS in background — and once an hour after that
+  refreshSlugMapsFromGAS();
+  setInterval(refreshSlugMapsFromGAS, 60 * 60 * 1000);
   await initCommentsFromGAS();
 });
