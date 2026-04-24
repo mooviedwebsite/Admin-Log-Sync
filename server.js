@@ -504,51 +504,62 @@ async function handleApi(req, res, apiPath) {
 }
 
 // ── Main request handler ──────────────────────────────────────────────────────
+//
+// Clean URL routing:
+//   /                       → index.html (SPA root)
+//   /movie/:id, /movies,    → index.html (SPA fallback for any non-asset route)
+//   /admin, /login, etc.
+//   /watch?video=...        → player.html (clean canonical player URL)
+//   /assets/*               → static assets
+//   /api/*                  → JSON API
+//   /Admin-Log-Sync/*       → 301-redirected to the clean equivalent (legacy)
+//
+// The compiled React bundle still references `/Admin-Log-Sync/...` for assets
+// and `/Admin-Log-Sync/player.html` for the play button. We redirect those to
+// their clean equivalents so the address bar always shows the professional URL.
 
-const server = http.createServer(async (req, res) => {
-  const parsedUrl = url.parse(req.url);
-  let urlPath     = parsedUrl.pathname || '/';
+const STATIC_FILES = new Set([
+  '/favicon.svg', '/opengraph.jpg', '/footer.css', '/footer.js',
+  '/ads-config.json', '/404.html', '/.nojekyll',
+]);
 
-  if (urlPath === '/' || urlPath === '') {
-    res.writeHead(302, { Location: BASE_PATH + '/' });
-    res.end();
-    return;
-  }
+function isAssetPath(p) {
+  if (p.startsWith('/assets/')) return true;
+  if (p.startsWith('/data/'))   return true;
+  if (p.startsWith('/posts/'))  return true;
+  if (STATIC_FILES.has(p))      return true;
+  // Any path with a known file extension is a static file request
+  const ext = path.extname(p).toLowerCase();
+  return !!ext && !!MIME[ext];
+}
 
-  // API routes
-  if (urlPath.startsWith('/api/') || urlPath === '/api') {
-    const apiPath = urlPath.slice(4) || '/';
-    try { await handleApi(req, res, apiPath); }
-    catch (err) {
-      console.error('API error:', err);
-      json(res, { success: false, error: 'Internal server error' }, 500);
-    }
-    return;
-  }
-
-  // Static files
-  let filePath = urlPath.startsWith(BASE_PATH)
-    ? urlPath.slice(BASE_PATH.length) || '/'
-    : urlPath;
-  if (filePath === '' || filePath === '/') filePath = '/index.html';
-
-  const fullPath = path.join(ROOT_DIR, filePath);
-  const ext      = path.extname(fullPath).toLowerCase();
-  const mime     = MIME[ext] || 'application/octet-stream';
-
+function serveFile(res, fullPath, ext) {
+  const mime = MIME[ext] || 'application/octet-stream';
   fs.readFile(fullPath, (err, data) => {
     if (err) {
       if (err.code === 'ENOENT') {
+        // SPA fallback: serve index.html for unknown routes (no extension)
+        if (!ext) {
+          fs.readFile(path.join(ROOT_DIR, 'index.html'), (e2, d2) => {
+            if (e2) { res.writeHead(404); res.end('Not Found'); return; }
+            const out = injectIntoHtml(d2);
+            res.writeHead(200, {
+              'Content-Type': 'text/html; charset=utf-8',
+              'Cache-Control': 'no-cache, no-store, must-revalidate',
+            });
+            res.end(out);
+          });
+          return;
+        }
         fs.readFile(path.join(ROOT_DIR, '404.html'), (e2, d2) => {
           res.writeHead(404, { 'Content-Type': 'text/html; charset=utf-8' });
           res.end(d2 || 'Not Found');
         });
-      } else {
-        res.writeHead(500); res.end('Server Error');
+        return;
       }
+      res.writeHead(500); res.end('Server Error');
       return;
     }
-
     if (ext === '.html') {
       data = injectIntoHtml(data);
       res.writeHead(200, {
@@ -560,15 +571,57 @@ const server = http.createServer(async (req, res) => {
       res.end(data);
       return;
     }
-
     res.writeHead(200, { 'Content-Type': mime });
     res.end(data);
   });
+}
+
+const server = http.createServer(async (req, res) => {
+  const parsedUrl = url.parse(req.url);
+  let urlPath     = parsedUrl.pathname || '/';
+  const search    = parsedUrl.search || '';
+
+  // ── API routes ──────────────────────────────────────────────────────────
+  if (urlPath.startsWith('/api/') || urlPath === '/api') {
+    const apiPath = urlPath.slice(4) || '/';
+    try { await handleApi(req, res, apiPath); }
+    catch (err) {
+      console.error('API error:', err);
+      json(res, { success: false, error: 'Internal server error' }, 500);
+    }
+    return;
+  }
+
+  // ── Legacy /Admin-Log-Sync/* → clean URL redirect ───────────────────────
+  if (urlPath === BASE_PATH || urlPath.startsWith(BASE_PATH + '/')) {
+    let stripped = urlPath.slice(BASE_PATH.length) || '/';
+    if (stripped === '/player.html') stripped = '/watch';
+    res.writeHead(301, { Location: stripped + search });
+    res.end();
+    return;
+  }
+
+  // ── Clean player URL: /watch?... → player.html ──────────────────────────
+  if (urlPath === '/watch' || urlPath === '/watch/') {
+    return serveFile(res, path.join(ROOT_DIR, 'player.html'), '.html');
+  }
+
+  // ── Static assets ───────────────────────────────────────────────────────
+  if (isAssetPath(urlPath)) {
+    const fullPath = path.join(ROOT_DIR, urlPath);
+    const ext      = path.extname(fullPath).toLowerCase();
+    return serveFile(res, fullPath, ext);
+  }
+
+  // ── SPA: every other route serves index.html ────────────────────────────
+  return serveFile(res, path.join(ROOT_DIR, 'index.html'), '.html');
 });
 
 server.listen(PORT, '0.0.0.0', async () => {
-  console.log(`MOOVIED server running at http://0.0.0.0:${PORT}${BASE_PATH}/`);
-  console.log(`API: http://0.0.0.0:${PORT}/api/*`);
+  console.log(`MOOVIED server running at http://0.0.0.0:${PORT}/`);
+  console.log(`Player:  http://0.0.0.0:${PORT}/watch?video=...`);
+  console.log(`API:     http://0.0.0.0:${PORT}/api/*`);
+  console.log(`Legacy:  /Admin-Log-Sync/* → 301 redirected to clean URL`);
   ensureDir(DATA_DIR);
   await initCommentsFromGAS();
 });
