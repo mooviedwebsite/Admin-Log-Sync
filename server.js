@@ -329,63 +329,116 @@ const INJECT_SCRIPT = `<script>
 const INJECT_MARKER = '<!-- moovied-inject -->';
 
 // Pretty URL inject — runs on every page load. Provides a slug↔id map and
-// hooks fetch + history so URLs in the address bar always look like
-// /movie/oppenheimer-2023 instead of /movie/<UUID>.
+// makes the address bar show /movie/oppenheimer-2023 while React's internal
+// router state always sees the real UUID.
+//
+// Strategy:
+//  1. BEFORE React boots: if URL is /movie/<slug>, immediately replaceState to
+//     /movie/<UUID> so React-router & useParams see the UUID.
+//  2. AFTER React mounts: cosmetically swap the URL bar back to /movie/<slug>
+//     using a raw replaceState (no popstate fired → React-router doesn't
+//     re-render or notice).
+//  3. On every browser navigation (pushState, popstate, back/forward), repeat
+//     the same translate-then-cosmetic-swap dance so React always handles
+//     UUIDs while users always see slugs.
+//  4. Fetch hook: defense-in-depth — translate any slug found in a GAS
+//     `?id=<x>` query back to the real UUID.
 function buildSlugInject() {
-  const data = JSON.stringify({ byId: SLUG_BY_ID, bySlug: ID_BY_SLUG });
+  // Escape `</script>` to prevent script-tag breakout via attacker-controlled
+  // titles or IDs that may have been registered into the slug maps.
+  const data = JSON.stringify({ byId: SLUG_BY_ID, bySlug: ID_BY_SLUG })
+    .replace(/</g, '\\u003c');
   return `<script>
 (function(){
   try {
     window.__MOOVIED_SLUGS__ = ${data};
     var M = window.__MOOVIED_SLUGS__;
 
-    // Pretty-print a path: /movie/<id> → /movie/<slug>, and /watch?...id=<id> → ...id=<slug>
-    function pretty(p) {
-      try {
-        var m = /^(\\/movie\\/)([^\\/?#]+)(.*)$/.exec(p);
-        if (m && M.byId[decodeURIComponent(m[2])]) {
-          return m[1] + M.byId[decodeURIComponent(m[2])] + m[3];
-        }
-      } catch(e){}
-      return p;
-    }
-
-    // Internal-form a path: /movie/<slug> → /movie/<id> (used to feed React via params)
-    function internal(p) {
-      try {
-        var m = /^(\\/movie\\/)([^\\/?#]+)(.*)$/.exec(p);
-        if (m && M.bySlug[decodeURIComponent(m[2])]) {
-          return m[1] + M.bySlug[decodeURIComponent(m[2])] + m[3];
-        }
-      } catch(e){}
-      return p;
-    }
-
-    // (1) Hook history so any UUID URL React tries to push becomes a slug URL
     var _ps = history.pushState.bind(history);
     var _rs = history.replaceState.bind(history);
-    history.pushState    = function(s,t,u){ if (typeof u === 'string') u = pretty(u); return _ps(s,t,u); };
-    history.replaceState = function(s,t,u){ if (typeof u === 'string') u = pretty(u); return _rs(s,t,u); };
 
-    // (2) Hook anchor clicks so right-click → copy link uses the slug version
-    document.addEventListener('click', function(ev){
-      var a = ev.target && ev.target.closest && ev.target.closest('a[href]');
-      if (!a) return;
-      var href = a.getAttribute('href');
-      if (!href || href[0] !== '/') return;
-      var p = pretty(href);
-      if (p !== href) a.setAttribute('href', p);
-    }, true);
+    function parseMovie(p) {
+      var m = /^(\\/movie\\/)([^\\/?#]+)(.*)$/.exec(p || '');
+      if (!m) return null;
+      try { return { prefix: m[1], seg: decodeURIComponent(m[2]), tail: m[3] }; }
+      catch(e) { return { prefix: m[1], seg: m[2], tail: m[3] }; }
+    }
 
-    // (3) Rewrite address bar on initial load if it contains a raw UUID
+    // Convert URL path to its internal (UUID) form for React, and to its
+    // pretty (slug) form for the address bar. Returns null if no change.
+    function toInternal(p) {
+      var x = parseMovie(p); if (!x) return null;
+      var id = M.bySlug[x.seg];
+      return id ? (x.prefix + id + x.tail) : null;
+    }
+    function toPretty(p) {
+      var x = parseMovie(p); if (!x) return null;
+      var slug = M.byId[x.seg];
+      return slug ? (x.prefix + slug + x.tail) : null;
+    }
+
+    // Cosmetic swap: change address bar to slug version WITHOUT firing
+    // popstate, so React-router keeps its UUID-based internal state.
+    function cosmeticSwapToSlug() {
+      var pretty = toPretty(location.pathname);
+      if (pretty && pretty !== location.pathname) {
+        _rs(history.state, '', pretty + location.search + location.hash);
+      }
+    }
+
+    // (1) Synchronous initial load: if URL has slug, replace with UUID NOW
+    //     so React's first read of location.pathname returns the UUID.
     (function(){
-      var p = location.pathname;
-      var pp = pretty(p);
-      if (pp !== p) _rs(history.state, '', pp + location.search + location.hash);
+      var internal = toInternal(location.pathname);
+      if (internal) _rs(history.state, '', internal + location.search + location.hash);
     })();
 
-    // (4) Hook fetch — when the bundled code calls GAS with id=<slug>,
-    //     translate the slug back to the real id transparently.
+    // (2) After React mounts, swap URL bar back to slug.
+    function whenReady(fn) {
+      if (document.readyState === 'complete' || document.readyState === 'interactive') {
+        setTimeout(fn, 50);
+      } else {
+        document.addEventListener('DOMContentLoaded', function(){ setTimeout(fn, 50); });
+      }
+    }
+    whenReady(cosmeticSwapToSlug);
+
+    // (3) When React navigates, let it use the UUID URL it wants. After the
+    //     navigation completes, schedule a cosmetic swap to slug.
+    history.pushState = function(s, t, u) {
+      // If React (or anything else) tries to push a slug URL, normalize it to
+      // UUID first so React-router's internal state stays UUID-based.
+      if (typeof u === 'string') {
+        var internal = toInternal(u);
+        if (internal) u = internal;
+      }
+      var ret = _ps(s, t, u);
+      setTimeout(cosmeticSwapToSlug, 0);
+      return ret;
+    };
+    history.replaceState = function(s, t, u) {
+      if (typeof u === 'string') {
+        var internal = toInternal(u);
+        if (internal) u = internal;
+      }
+      var ret = _rs(s, t, u);
+      setTimeout(cosmeticSwapToSlug, 0);
+      return ret;
+    };
+
+    // (4) Browser back/forward: URL may be a slug entry from earlier cosmetic
+    //     swap. We MUST translate to UUID BEFORE React-router's popstate
+    //     listener reads location.pathname. Since this script ran during
+    //     <head> parsing, our listener is registered first — runs first.
+    window.addEventListener('popstate', function(){
+      var internal = toInternal(location.pathname);
+      if (internal) {
+        _rs(history.state, '', internal + location.search + location.hash);
+        setTimeout(cosmeticSwapToSlug, 0);
+      }
+    });
+
+    // (5) Fetch defense-in-depth: translate slug → UUID in any GAS id param.
     var _f = window.fetch.bind(window);
     window.fetch = function(input, init) {
       try {
