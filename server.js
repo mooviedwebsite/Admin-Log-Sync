@@ -63,7 +63,13 @@ function buildSlugMapsFromPosts() {
       if (!f.endsWith('.json')) continue;
       try {
         const obj = JSON.parse(fs.readFileSync(path.join(dir, f), 'utf8'));
-        registerMovie(obj.id, obj.title, obj.year);
+        // Prefer the embedded slug field; fall back to computing it
+        if (obj.id && obj.slug) {
+          SLUG_BY_ID[obj.id]    = obj.slug;
+          ID_BY_SLUG[obj.slug]  = obj.id;
+        } else {
+          registerMovie(obj.id, obj.title, obj.year);
+        }
       } catch {}
     }
   }
