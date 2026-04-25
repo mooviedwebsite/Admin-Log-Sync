@@ -1,0 +1,74 @@
+name: Build slug-map.json
+
+# Runs whenever posts are added/edited (via Google Apps Script pushing to GitHub)
+# or manually triggered. Generates slug-map.json so index.html can resolve
+# clean URLs without hitting the GitHub API at runtime.
+
+on:
+  push:
+    paths:
+      - 'posts/**'
+      - '.github/workflows/build-slug-map.yml'
+  workflow_dispatch:
+
+jobs:
+  build-slug-map:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Generate slug-map.json
+        run: |
+          node -e "
+            const fs   = require('fs');
+            const path = require('path');
+
+            const dirs    = ['posts/movies', 'posts/tv-series'];
+            const entries = [];
+
+            for (const dir of dirs) {
+              if (!fs.existsSync(dir)) continue;
+              const files = fs.readdirSync(dir).filter(f => f.endsWith('.json'));
+              for (const file of files) {
+                try {
+                  const data = JSON.parse(fs.readFileSync(path.join(dir, file), 'utf8'));
+                  if (!data.id) continue;
+
+                  // Prefer the embedded slug field; fall back to computing one
+                  let slug = data.slug;
+                  if (!slug && data.title) {
+                    const base = String(data.title).toLowerCase()
+                      .replace(/[^a-z0-9\s-]/g, '')
+                      .trim()
+                      .replace(/\s+/g, '-')
+                      .replace(/-+/g, '-')
+                      .replace(/^-+|-+$/, '');
+                    slug = data.year ? base + '-' + String(data.year).trim() : base;
+                  }
+                  if (!slug) continue;
+
+                  entries.push({ id: data.id, slug: slug });
+                } catch (e) {
+                  console.warn('Skipping', file, e.message);
+                }
+              }
+            }
+
+            fs.writeFileSync('slug-map.json', JSON.stringify(entries, null, 2) + '\n');
+            console.log('slug-map.json written with', entries.length, 'entries:');
+            entries.forEach(e => console.log(' ', e.id, '->', e.slug));
+          "
+
+      - name: Commit slug-map.json
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add slug-map.json
+          git diff --staged --quiet \
+            && echo "slug-map.json unchanged — nothing to commit" \
+            || git commit -m "chore: update slug-map.json [skip ci]"
+          git push
