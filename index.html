@@ -2,6 +2,170 @@
 <html lang="en">
   <head>
     <!-- moovied-inject -->
+    <script>
+    // ── GitHub Pages static slug builder ──────────────────────────────────────
+    // When the Node.js server is NOT running (e.g. GitHub Pages), the server
+    // cannot inject window.__MOOVIED_SLUGS__. This script builds the slug map
+    // client-side by reading the slug field embedded in each posts/*.json file.
+    // It runs synchronously for the initial URL swap, then fires an async fetch
+    // to ensure the full map is ready before React mounts.
+    (function () {
+      try {
+        // Detect GitHub Pages: pathname starts with /Admin-Log-Sync
+        var BASE = '/Admin-Log-Sync';
+        var onGHPages = window.location.pathname.indexOf(BASE) === 0
+                     || window.location.hostname.indexOf('github.io') !== -1;
+        if (!onGHPages) return; // server will inject slugs instead
+
+        // If the server already injected slugs, skip
+        if (window.__MOOVIED_SLUGS__ &&
+            Object.keys(window.__MOOVIED_SLUGS__.byId || {}).length > 0) return;
+
+        // Initialize empty maps immediately so the slug layer doesn't crash
+        window.__MOOVIED_SLUGS__ = window.__MOOVIED_SLUGS__ || { byId: {}, bySlug: {} };
+        var M = window.__MOOVIED_SLUGS__;
+
+        function applyEntry(id, slug) {
+          if (!id || !slug) return;
+          M.byId[id]     = slug;
+          M.bySlug[slug] = id;
+        }
+
+        // ── Async fetch: load all post JSONs from GitHub Pages ────────────────
+        // GitHub Pages exposes the repo tree via the GitHub API.
+        // We fetch the posts/movies and posts/tv-series directories' contents,
+        // then fetch each JSON file and read its id + slug fields.
+        var REPO_API = 'https://api.github.com/repos/mooviedwebsite/Admin-Log-Sync/contents/posts';
+        var CACHE_KEY = 'mvd_slugs_v1';
+        var CACHE_TTL = 10 * 60 * 1000; // 10 minutes
+
+        function saveCache(data) {
+          try {
+            sessionStorage.setItem(CACHE_KEY, JSON.stringify({ t: Date.now(), d: data }));
+          } catch(e) {}
+        }
+        function loadCache() {
+          try {
+            var raw = sessionStorage.getItem(CACHE_KEY);
+            if (!raw) return null;
+            var obj = JSON.parse(raw);
+            if (Date.now() - obj.t < CACHE_TTL) return obj.d;
+          } catch(e) {}
+          return null;
+        }
+
+        function applyAll(entries) {
+          entries.forEach(function(e) { applyEntry(e.id, e.slug); });
+          // Re-run URL cosmetic swap now that maps are populated
+          cosmeticSwapToSlug();
+        }
+
+        function fetchJson(url) {
+          return fetch(url, { headers: { Accept: 'application/vnd.github.v3+json' } })
+            .then(function(r) { return r.ok ? r.json() : []; });
+        }
+
+        function buildFromAPI() {
+          return fetchJson(REPO_API)
+            .then(function(folders) {
+              if (!Array.isArray(folders)) return [];
+              var fetches = folders
+                .filter(function(f) { return f.type === 'dir'; })
+                .map(function(folder) {
+                  return fetchJson(folder.url).then(function(files) {
+                    if (!Array.isArray(files)) return [];
+                    return Promise.all(
+                      files
+                        .filter(function(f) { return f.name && f.name.endsWith('.json') && f.download_url; })
+                        .map(function(f) {
+                          return fetch(f.download_url)
+                            .then(function(r) { return r.ok ? r.json() : null; })
+                            .then(function(data) {
+                              if (!data || !data.id) return null;
+                              // Use embedded slug if present, otherwise build it
+                              var slug = data.slug || (slugifyTitle(data.title, data.year));
+                              return { id: data.id, slug: slug };
+                            })
+                            .catch(function() { return null; });
+                        })
+                    );
+                  });
+                });
+              return Promise.all(fetches).then(function(groups) {
+                var flat = [];
+                groups.forEach(function(g) {
+                  g.forEach(function(e) { if (e) flat.push(e); });
+                });
+                return flat;
+              });
+            });
+        }
+
+        function slugifyTitle(title, year) {
+          if (!title) return '';
+          var base = String(title).toLowerCase()
+            .replace(/[^a-z0-9\s-]/g, '').replace(/\s+/g, '-').replace(/-+/g, '-')
+            .replace(/^-+|-+$/g, '');
+          return year ? base + '-' + String(year).trim() : base;
+        }
+
+        // Cosmetic swap: change address bar UUID → slug
+        function cosmeticSwapToSlug() {
+          var m = /^(\/Admin-Log-Sync\/movie\/)([^/?#]+)(.*)$/.exec(location.pathname);
+          if (!m) return;
+          var seg = m[2], slug = M.byId[seg];
+          if (slug && slug !== seg) {
+            history.replaceState(history.state, '', m[1] + slug + m[3] + location.search + location.hash);
+          }
+        }
+
+        // Translate slug → UUID before React reads it
+        function toInternal(p) {
+          var m = /^(\/Admin-Log-Sync\/movie\/)([^/?#]+)(.*)$/.exec(p);
+          if (!m) return null;
+          var id = M.bySlug[m[2]];
+          return id ? m[1] + id + m[3] : null;
+        }
+
+        // Synchronous initial swap (from slug URL → UUID for React)
+        (function() {
+          var internal = toInternal(location.pathname);
+          if (internal) history.replaceState(history.state, '', internal + location.search + location.hash);
+        })();
+
+        // Try session cache first for instant slug map
+        var cached = loadCache();
+        if (cached && cached.length > 0) {
+          applyAll(cached);
+        }
+
+        // Always async-fetch fresh data to keep map current
+        buildFromAPI().then(function(entries) {
+          if (entries && entries.length > 0) {
+            saveCache(entries);
+            applyAll(entries);
+          }
+        }).catch(function() {});
+
+        // Hook pushState/replaceState for navigation after initial load
+        var _ps = history.pushState.bind(history);
+        var _rs = history.replaceState.bind(history);
+        history.pushState = function(s, t, u) {
+          if (typeof u === 'string') { var id = toInternal(u); if (id) u = id; }
+          var r = _ps(s, t, u); setTimeout(cosmeticSwapToSlug, 0); return r;
+        };
+        history.replaceState = function(s, t, u) {
+          if (typeof u === 'string') { var id = toInternal(u); if (id) u = id; }
+          return _rs(s, t, u);
+        };
+        window.addEventListener('popstate', function() {
+          var internal = toInternal(location.pathname);
+          if (internal) { _rs(history.state, '', internal + location.search + location.hash); setTimeout(cosmeticSwapToSlug, 0); }
+        });
+
+      } catch(e) { /* never break the page */ }
+    })();
+    </script>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1" />
     <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
