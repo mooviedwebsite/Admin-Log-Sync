@@ -6,7 +6,6 @@ import MovieCard from "@/components/MovieCard";
 import { SkeletonRow } from "@/components/SkeletonCard";
 import { useMovies } from "@/hooks/useMovies";
 import { type Movie } from "@/lib/api";
-import StudioSlider from "@/components/StudioSlider";
 
 export default function HomePage() {
   const { movies, loading } = useMovies();
@@ -90,8 +89,6 @@ export default function HomePage() {
               </>
             ) : (
               <>
-                <StudioSlider />
-
                 <MovieRow title="Trending Now" movies={trending} />
                 <MovieRow title="Latest Releases" movies={latest} />
                 {Object.entries(genreGroups).map(([genre, genreMovies]) => (
