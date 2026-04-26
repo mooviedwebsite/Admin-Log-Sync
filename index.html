@@ -409,9 +409,6 @@
               if (changedSession) safeWrite(SESSION_KEY, JSON.stringify(u));
             }
 
-            // Always push the merged set back so the cloud has the union.
-            // This guarantees pre-existing localStorage data on the original
-            // device gets uploaded on the very next page load after this fix.
             var remoteBm = (res.bookmarks || []).map(String).sort().join(',');
             var remoteHi = (res.watchHistory || []).map(function(h){return h && (h.movie_id||h.movieId||h.id);}).filter(Boolean).map(String).sort().join(',');
             var localBmKey = mergedBm.slice().sort().join(',');
@@ -443,7 +440,6 @@
           var u = getCurrentUser(); if (!u || !u.id) return;
           var items;
           try { items = JSON.parse(localStorage.getItem(HISTORY_KEY) || '[]'); } catch(e){ items = []; }
-          // Normalise — the app may store either raw movie ids (strings) or objects
           var norm = items.map(function(it){
             if (typeof it === 'string') return { movie_id: it, watched_at: new Date().toISOString(), progress: 0 };
             return {
@@ -467,7 +463,6 @@
           if (changed) gasPost({ action: 'updateUserProfile', userId: nextUser.id, fields: fields });
         }
 
-        // Override setItem so any write the React app makes also pushes to GAS
         var _s = Storage.prototype.setItem;
         Storage.prototype.setItem = function(k, v) {
           var prev = null;
@@ -479,24 +474,19 @@
           else if (k === HISTORY_KEY)   { log('detected history change');   debouncedPush('hi', pushHistory); }
           else if (k === SESSION_KEY) {
             var nu = getCurrentUser();
-            // Login or user change → pull cloud data immediately
             if (nu && nu.id && (!prev || prev.id !== nu.id)) {
               log('detected login/user change → pulling cloud data');
               pullUserData(nu.id);
             }
-            // Profile fields edited locally → push to cloud
             if (nu && prev && nu.id === prev.id) pushProfile(prev, nu);
           }
         };
 
-        // Initial pull on page load if user is already logged in
         function initialSync() {
           var u = getCurrentUser();
           if (u && u.id) {
             log('initial sync for user', u.id, '(' + (u.email || '') + ')');
             pullUserData(u.id);
-            // Also force-push current localStorage so old devices upload data they
-            // accumulated before this sync code existed.
             var localBm = readJson(BOOKMARKS_KEY);
             var localHi = readJson(HISTORY_KEY);
             if (localBm.length > 0) debouncedPush('bm', pushBookmarks);
@@ -506,8 +496,6 @@
           }
         }
 
-        // Expose a manual trigger so users can verify in DevTools:
-        //   mooviedSyncNow()
         window.mooviedSyncNow = function() {
           log('manual sync triggered');
           initialSync();
@@ -519,8 +507,6 @@
           initialSync();
         }
 
-        // Periodic re-pull every 30s while the tab is visible — catches edits
-        // made on other devices.
         setInterval(function(){
           if (document.visibilityState === 'visible') initialSync();
         }, 30000);
@@ -528,7 +514,6 @@
           if (document.visibilityState === 'visible') initialSync();
         });
 
-        // Also re-pull when another tab logs in/out
         window.addEventListener('storage', function(ev){
           if (ev.key === SESSION_KEY) {
             var u = getCurrentUser();
@@ -597,11 +582,109 @@
         .mvd-dl-btn{padding:6px 12px;font-size:10px;border-radius:8px}
         .mvd-dl-pct{font-size:10px;min-width:28px}
       }
+
+      /* ── Studio Logo Slider ────────────────────────────────────────────────── */
+      .studio-slider-wrap{position:relative;overflow:hidden;width:100%;background:#000;padding:10px 0}
+      .studio-track{display:flex;gap:clamp(10px,2vw,22px);width:max-content;animation:studioScroll 30s linear infinite;padding:clamp(8px,2vw,16px)}
+      .studio-pill{display:flex;align-items:center;gap:clamp(6px,1.5vw,12px);padding:clamp(6px,1.5vw,10px) clamp(12px,2vw,18px);border-radius:999px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.08);backdrop-filter:blur(14px);color:#fff;font-size:clamp(10px,1.2vw,13px);font-weight:600;transition:all .35s ease;white-space:nowrap;cursor:pointer;font-family:'Inter',sans-serif;letter-spacing:.5px}
+      .studio-logo-box{width:clamp(22px,3vw,32px);height:clamp(22px,3vw,32px);border-radius:50%;background:rgba(255,255,255,0.08);display:flex;align-items:center;justify-content:center;overflow:hidden;position:relative;flex-shrink:0}
+      .studio-logo-box img{width:75%;height:75%;object-fit:contain;filter:brightness(0) invert(1)}
+      .studio-logo-box::after{content:"";position:absolute;top:0;left:-100%;width:60%;height:100%;background:linear-gradient(120deg,transparent,rgba(255,255,255,0.6),transparent);transform:skewX(-20deg)}
+      .studio-pill.active .studio-logo-box::after{animation:studioShine 1s ease}
+      .studio-slider-wrap[data-active] .studio-pill{opacity:0.25;transform:scale(0.95)}
+      .studio-pill.active{opacity:1!important;transform:scale(1.08)!important;background:rgba(255,255,255,0.18);box-shadow:0 0 20px rgba(255,255,255,0.15),0 10px 25px rgba(255,255,255,0.08)}
+      .studio-slider-wrap::before,.studio-slider-wrap::after{content:"";position:absolute;top:0;width:clamp(30px,8vw,80px);height:100%;z-index:2;pointer-events:none}
+      .studio-slider-wrap::before{left:0;background:linear-gradient(to right,#000,transparent)}
+      .studio-slider-wrap::after{right:0;background:linear-gradient(to left,#000,transparent)}
+      @keyframes studioScroll{from{transform:translateX(0)}to{transform:translateX(-50%)}}
+      @keyframes studioShine{0%{left:-100%}100%{left:140%}}
+      @media(max-width:480px){.studio-track{animation-duration:40s}}
+      @media(min-width:768px){.studio-track{animation-duration:28s}}
+      @media(min-width:1200px){.studio-track{animation-duration:22s}}
     </style>
     <link rel="stylesheet" href="footer.css?v=2">
   </head>
   <body>
+
+    <!-- ── Studio Logo Slider — renders instantly before React loads ── -->
+    <div class="studio-slider-wrap" id="studioSlider">
+      <div class="studio-track" id="studioTrack">
+        <!-- original set -->
+        <div class="studio-pill"><div class="studio-logo-box"><img src="https://upload.wikimedia.org/wikipedia/commons/5/5e/Paramount_Pictures_logo.svg" alt="Paramount"></div>PARAMOUNT</div>
+        <div class="studio-pill"><div class="studio-logo-box"><img src="https://upload.wikimedia.org/wikipedia/commons/3/3e/Disney%2B_logo.svg" alt="Disney"></div>DISNEY</div>
+        <div class="studio-pill"><div class="studio-logo-box"><img src="https://upload.wikimedia.org/wikipedia/commons/4/4d/DreamWorks_Animation_logo.svg" alt="DreamWorks"></div>DREAMWORKS</div>
+        <div class="studio-pill"><div class="studio-logo-box"><img src="https://upload.wikimedia.org/wikipedia/commons/d/de/HBO_logo.svg" alt="HBO"></div>HBO</div>
+        <div class="studio-pill"><div class="studio-logo-box"><img src="https://upload.wikimedia.org/wikipedia/commons/7/7a/Pixar_logo.svg" alt="Pixar"></div>PIXAR</div>
+        <div class="studio-pill"><div class="studio-logo-box"><img src="https://upload.wikimedia.org/wikipedia/commons/0/08/Netflix_2015_logo.svg" alt="Netflix"></div>NETFLIX</div>
+        <div class="studio-pill"><div class="studio-logo-box"><img src="https://upload.wikimedia.org/wikipedia/commons/7/7e/Universal_Pictures_logo.svg" alt="Universal"></div>UNIVERSAL</div>
+        <div class="studio-pill"><div class="studio-logo-box"><img src="https://upload.wikimedia.org/wikipedia/commons/0/04/MarvelLogo.svg" alt="Marvel"></div>MARVEL</div>
+        <!-- duplicate set for seamless infinite scroll -->
+        <div class="studio-pill"><div class="studio-logo-box"><img src="https://upload.wikimedia.org/wikipedia/commons/5/5e/Paramount_Pictures_logo.svg" alt="Paramount"></div>PARAMOUNT</div>
+        <div class="studio-pill"><div class="studio-logo-box"><img src="https://upload.wikimedia.org/wikipedia/commons/3/3e/Disney%2B_logo.svg" alt="Disney"></div>DISNEY</div>
+        <div class="studio-pill"><div class="studio-logo-box"><img src="https://upload.wikimedia.org/wikipedia/commons/4/4d/DreamWorks_Animation_logo.svg" alt="DreamWorks"></div>DREAMWORKS</div>
+        <div class="studio-pill"><div class="studio-logo-box"><img src="https://upload.wikimedia.org/wikipedia/commons/d/de/HBO_logo.svg" alt="HBO"></div>HBO</div>
+        <div class="studio-pill"><div class="studio-logo-box"><img src="https://upload.wikimedia.org/wikipedia/commons/7/7a/Pixar_logo.svg" alt="Pixar"></div>PIXAR</div>
+        <div class="studio-pill"><div class="studio-logo-box"><img src="https://upload.wikimedia.org/wikipedia/commons/0/08/Netflix_2015_logo.svg" alt="Netflix"></div>NETFLIX</div>
+        <div class="studio-pill"><div class="studio-logo-box"><img src="https://upload.wikimedia.org/wikipedia/commons/7/7e/Universal_Pictures_logo.svg" alt="Universal"></div>UNIVERSAL</div>
+        <div class="studio-pill"><div class="studio-logo-box"><img src="https://upload.wikimedia.org/wikipedia/commons/0/04/MarvelLogo.svg" alt="Marvel"></div>MARVEL</div>
+      </div>
+    </div>
+
     <div id="root"></div>
+
+    <!-- Studio Slider interaction script -->
+    <script>
+      (function(){
+        var pills = document.querySelectorAll('.studio-pill');
+        var track = document.getElementById('studioTrack');
+        var wrap  = document.getElementById('studioSlider');
+        pills.forEach(function(pill){
+          function on(){
+            track.style.animationPlayState = 'paused';
+            wrap.dataset.active = '1';
+            pills.forEach(function(p){ p.classList.remove('active'); });
+            pill.classList.add('active');
+          }
+          function off(){
+            track.style.animationPlayState = 'running';
+            delete wrap.dataset.active;
+            pills.forEach(function(p){ p.classList.remove('active'); });
+          }
+          pill.addEventListener('mouseenter', on);
+          pill.addEventListener('mouseleave', off);
+          pill.addEventListener('click', function(){
+            pill.classList.contains('active') ? off() : on();
+          });
+        });
+
+        // ── Move slider below hero banner once React mounts ──────────────────
+        // React renders into #root. Once #root has children (the Navbar + Banner),
+        // we relocate the slider to sit right after the carousel section.
+        var slider = document.getElementById('studioSlider');
+        var root   = document.getElementById('root');
+        var moved  = false;
+
+        function tryMove() {
+          if (moved) return;
+          // Look for the carousel container that HeroBanner renders
+          var carousel = root.querySelector('.carousel-container');
+          if (!carousel) return;
+          moved = true;
+          // Insert slider immediately after the carousel
+          carousel.parentNode.insertBefore(slider, carousel.nextSibling);
+        }
+
+        // Poll until React has painted the banner
+        var poller = setInterval(function(){
+          tryMove();
+          if (moved) clearInterval(poller);
+        }, 100);
+
+        // Stop polling after 10s regardless
+        setTimeout(function(){ clearInterval(poller); }, 10000);
+      })();
+    </script>
+
     <script src="footer.js?v=2" defer></script>
   </body>
 </html>
