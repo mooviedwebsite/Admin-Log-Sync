@@ -6,6 +6,7 @@ import MovieCard from "@/components/MovieCard";
 import { SkeletonRow } from "@/components/SkeletonCard";
 import { useMovies } from "@/hooks/useMovies";
 import { type Movie } from "@/lib/api";
+import StudioSlider from "@/components/StudioSlider";
 
 export default function HomePage() {
   const { movies, loading } = useMovies();
@@ -35,7 +36,6 @@ export default function HomePage() {
   const genreGroups = useMemo(() => {
     const groups: Record<string, Movie[]> = {};
     movies.forEach((m) => {
-      // Split comma-separated genres so "Action,History" appears in both rows
       const genres = m.genre ? m.genre.split(",").map((g) => g.trim()).filter(Boolean) : ["Other"];
       genres.forEach((g) => {
         if (!groups[g]) groups[g] = [];
@@ -90,6 +90,8 @@ export default function HomePage() {
               </>
             ) : (
               <>
+                <StudioSlider />
+
                 <MovieRow title="Trending Now" movies={trending} />
                 <MovieRow title="Latest Releases" movies={latest} />
                 {Object.entries(genreGroups).map(([genre, genreMovies]) => (
