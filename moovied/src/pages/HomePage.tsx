@@ -6,6 +6,7 @@ import MovieCard from "@/components/MovieCard";
 import { SkeletonRow } from "@/components/SkeletonCard";
 import { useMovies } from "@/hooks/useMovies";
 import { type Movie } from "@/lib/api";
+import StudioSlider from "@/components/StudioSlider";
 
 export default function HomePage() {
   const { movies, loading } = useMovies();
@@ -72,6 +73,7 @@ export default function HomePage() {
         </div>
       ) : (
         <>
+          {/* Hero Banner */}
           {loading ? (
             <div className="pt-16">
               <div className="h-[70vh] min-h-[500px] bg-black animate-pulse" />
@@ -80,7 +82,23 @@ export default function HomePage() {
             <HeroBanner movies={movies} />
           )}
 
-          <div className="pt-8 pb-16">
+          {/* ✅ Studio Slider — outside carousel, full width, always visible */}
+          <div style={{
+            width: "100vw",
+            position: "relative",
+            left: "50%",
+            right: "50%",
+            marginLeft: "-50vw",
+            marginRight: "-50vw",
+            backgroundColor: "#000",
+            paddingTop: "12px",
+            paddingBottom: "12px",
+          }}>
+            <StudioSlider />
+          </div>
+
+          {/* Movie Rows */}
+          <div className="pt-4 pb-16">
             {loading ? (
               <>
                 <SkeletonRow />
