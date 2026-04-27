@@ -601,6 +601,30 @@
       @media(max-width:480px){.studio-track{animation-duration:40s}}
       @media(min-width:768px){.studio-track{animation-duration:28s}}
       @media(min-width:1200px){.studio-track{animation-duration:22s}}
+
+      /* ── Search Hero ─────────────────────────────────────────────────────── */
+      .sh-hero{position:relative;border-radius:20px;overflow:hidden;padding:1px;background:linear-gradient(120deg,rgba(255,255,255,0.25),rgba(255,255,255,0.05),rgba(255,255,255,0.25));margin:24px 16px 8px;height:clamp(300px,38vw,460px);display:none}
+      @media(min-width:768px){.sh-hero{border-radius:28px;margin:24px 24px 8px}}
+      @media(min-width:1024px){.sh-hero{margin:24px 32px 8px}}
+      .sh-inner{position:relative;height:100%;border-radius:inherit;overflow:hidden;background:#000}
+      .sh-bg{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;filter:brightness(0.3)}
+      .sh-overlay{position:absolute;inset:0;background:linear-gradient(to bottom,rgba(0,0,0,0.55),#000)}
+      .sh-content{position:relative;z-index:10;height:100%;display:flex;flex-direction:column;justify-content:center;align-items:center;text-align:center;padding:0 16px}
+      .sh-title{color:#fff;font-weight:600;font-size:clamp(18px,3vw,36px);margin-bottom:8px;font-family:'Inter',sans-serif}
+      .sh-sub{color:rgba(255,255,255,0.55);font-size:clamp(11px,1.5vw,15px);margin-bottom:20px;font-family:'Inter',sans-serif}
+      .sh-row{display:flex;flex-direction:column;gap:12px;width:100%;max-width:640px}
+      @media(min-width:640px){.sh-row{flex-direction:row}}
+      .sh-input-wrap{display:flex;align-items:center;gap:12px;padding:12px 16px;border-radius:999px;background:rgba(255,255,255,0.07);backdrop-filter:blur(18px);border:1px solid rgba(255,255,255,0.13);flex:1;transition:border-color .25s,box-shadow .25s}
+      .sh-input-wrap:focus-within{border-color:rgba(255,255,255,0.35);box-shadow:0 0 0 3px rgba(255,255,255,0.06)}
+      .sh-input{background:transparent;border:none;outline:none;color:#fff;font-size:clamp(13px,1.4vw,16px);width:100%;font-family:'Inter',sans-serif}
+      .sh-input::placeholder{color:rgba(255,255,255,0.4)}
+      .sh-btn{padding:12px 24px;border-radius:999px;background:#fff;color:#000;font-weight:600;font-size:clamp(13px,1.4vw,16px);display:flex;align-items:center;justify-content:center;gap:8px;cursor:pointer;border:none;font-family:'Inter',sans-serif;transition:box-shadow .25s;white-space:nowrap}
+      .sh-btn:hover{box-shadow:0 0 22px rgba(255,255,255,0.25)}
+      .sh-chips,.sh-popular{display:flex;flex-wrap:wrap;justify-content:center;gap:8px;margin-top:14px}
+      .sh-chip{background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.1);border-radius:999px;padding:4px 14px;color:rgba(255,255,255,0.8);font-size:clamp(10px,1.2vw,13px);cursor:pointer;font-family:'Inter',sans-serif;transition:background .2s}
+      .sh-chip:hover{background:rgba(255,255,255,0.16)}
+      .sh-popular .sh-chip{color:rgba(255,255,255,0.65);padding:3px 12px;font-size:clamp(9px,1vw,12px)}
+      .sh-hint{color:rgba(255,255,255,0.3);font-size:clamp(9px,1vw,11px);margin-top:10px;font-family:'Inter',sans-serif}
     </style>
     <link rel="stylesheet" href="footer.css?v=2">
   </head>
@@ -627,6 +651,42 @@
         <div class="studio-pill"><div class="studio-logo-box"><img src="https://upload.wikimedia.org/wikipedia/commons/0/08/Netflix_2015_logo.svg" alt="Netflix"></div>NETFLIX</div>
         <div class="studio-pill"><div class="studio-logo-box"><img src="https://upload.wikimedia.org/wikipedia/commons/7/7e/Universal_Pictures_logo.svg" alt="Universal"></div>UNIVERSAL</div>
         <div class="studio-pill"><div class="studio-logo-box"><img src="https://upload.wikimedia.org/wikipedia/commons/0/04/MarvelLogo.svg" alt="Marvel"></div>MARVEL</div>
+      </div>
+    </div>
+
+    <!-- ── Search Hero — renders before React loads ── -->
+    <div class="sh-hero" id="searchHero">
+      <div class="sh-inner">
+        <img class="sh-bg" src="https://res.cloudinary.com/digorezin/image/upload/v1745851537/Netflix-Background_bgtauh.jpg" alt="">
+        <div class="sh-overlay"></div>
+        <div class="sh-content">
+          <h1 class="sh-title">Find Your Next Movie</h1>
+          <p class="sh-sub">Search from thousands of movies &amp; shows</p>
+          <div class="sh-row">
+            <div class="sh-input-wrap">
+              <svg width="20" height="20" fill="none" stroke="rgba(255,255,255,0.5)" stroke-width="2" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+              <input class="sh-input" id="shInput" type="text" placeholder="Search movies, shows..." autocomplete="off">
+            </div>
+            <button class="sh-btn" id="shBtn">
+              <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7"/></svg>
+              Search
+            </button>
+          </div>
+          <div class="sh-chips">
+            <span class="sh-chip" data-genre="">All</span>
+            <span class="sh-chip" data-genre="Movies">Movies</span>
+            <span class="sh-chip" data-genre="TV Shows">TV Shows</span>
+            <span class="sh-chip" data-genre="Anime">Anime</span>
+          </div>
+          <div class="sh-popular">
+            <span class="sh-chip" data-search="Avengers">Avengers</span>
+            <span class="sh-chip" data-search="Batman">Batman</span>
+            <span class="sh-chip" data-search="Interstellar">Interstellar</span>
+            <span class="sh-chip" data-search="Joker">Joker</span>
+            <span class="sh-chip" data-search="Inception">Inception</span>
+          </div>
+          <p class="sh-hint">10,000+ titles available</p>
+        </div>
       </div>
     </div>
 
@@ -682,6 +742,53 @@
 
         // Stop polling after 10s regardless
         setTimeout(function(){ clearInterval(poller); }, 10000);
+      })();
+    </script>
+
+    <!-- Search Hero script -->
+    <script>
+      (function(){
+        var BASE   = '/Admin-Log-Sync';
+        var input  = document.getElementById('shInput');
+        var btn    = document.getElementById('shBtn');
+        var hero   = document.getElementById('searchHero');
+        var root   = document.getElementById('root');
+
+        function goSearch(q) {
+          if (!q || !q.trim()) return;
+          window.location.href = BASE + '/movies?search=' + encodeURIComponent(q.trim());
+        }
+        function goGenre(g) {
+          window.location.href = BASE + '/movies' + (g ? '?genre=' + encodeURIComponent(g) : '');
+        }
+
+        btn.addEventListener('click', function(){ goSearch(input.value); });
+        input.addEventListener('keydown', function(e){ if(e.key==='Enter') goSearch(input.value); });
+
+        document.querySelectorAll('.sh-chip[data-search]').forEach(function(el){
+          el.addEventListener('click', function(){ goSearch(el.dataset.search); });
+        });
+        document.querySelectorAll('.sh-chip[data-genre]').forEach(function(el){
+          el.addEventListener('click', function(){ goGenre(el.dataset.genre); });
+        });
+
+        // ── Move search hero below studio slider once React mounts ───────────
+        var moved = false;
+        function tryMoveHero() {
+          if (moved) return;
+          var slider = document.getElementById('studioSlider');
+          if (!slider || !slider.parentNode) return;
+          moved = true;
+          // show it (was hidden until positioned correctly)
+          hero.style.display = 'block';
+          slider.parentNode.insertBefore(hero, slider.nextSibling);
+        }
+
+        var poller2 = setInterval(function(){
+          tryMoveHero();
+          if (moved) clearInterval(poller2);
+        }, 100);
+        setTimeout(function(){ clearInterval(poller2); if(!moved){ hero.style.display='block'; } }, 10000);
       })();
     </script>
 
