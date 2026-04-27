@@ -2,7 +2,6 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { Link } from "wouter";
 import { type Movie } from "@/lib/api";
 import "./HeroBanner.css";
-import StudioSlider from "@/components/StudioSlider";
 
 interface HeroBannerProps {
   movies: Movie[];
@@ -10,6 +9,7 @@ interface HeroBannerProps {
 
 const AUTO_PLAY_INTERVAL = 7000;
 
+/** Extract YouTube video ID from any valid YT URL */
 function extractYouTubeId(url: string | undefined): string | null {
   if (!url) return null;
   const match = url.match(
@@ -18,6 +18,7 @@ function extractYouTubeId(url: string | undefined): string | null {
   return match ? match[1] : null;
 }
 
+/** Build the fast-loading, no-UI YouTube embed URL */
 function ytEmbedUrl(videoId: string): string {
   const params = new URLSearchParams({
     autoplay: "1",
@@ -105,6 +106,7 @@ export default function HeroBanner({ movies }: HeroBannerProps) {
     }
   };
 
+  // Fade video in as soon as the iframe reports loaded
   const handleYtLoad = () => {
     if (ytTimerRef.current) clearTimeout(ytTimerRef.current);
     ytTimerRef.current = setTimeout(() => setYtReady(true), 150);
@@ -134,11 +136,13 @@ export default function HeroBanner({ movies }: HeroBannerProps) {
           {featured.map((m, idx) => (
             <div key={m.id} className={`movie-banner${idx === current ? " active" : ""}`}>
 
+              {/* Layer 0: Poster (instant fallback) */}
               <div
                 className={`banner-bg${idx === current && isActive ? " active" : ""}`}
                 style={{ backgroundImage: `url('${m.poster_url}')` }}
               />
 
+              {/* Layer 1: YouTube video — only rendered for the active slide */}
               {idx === current && currentVideoId && (
                 <div className="hb-yt-wrap">
                   <iframe
@@ -153,8 +157,10 @@ export default function HeroBanner({ movies }: HeroBannerProps) {
                 </div>
               )}
 
+              {/* Layer 2: Dark cinematic gradient overlay */}
               <div className="hb-dark-overlay" />
 
+              {/* Layer 4: Content */}
               <div className="banner-content" style={{ paddingTop: "80px" }}>
                 <div className="hb-badges">
                   {m.rating && (
@@ -265,9 +271,6 @@ export default function HeroBanner({ movies }: HeroBannerProps) {
           </div>
         )}
       </div>
-
-      {/* ── Studio Logo Slider — sits directly below the banner ── */}
-      <StudioSlider />
     </div>
   );
 }
