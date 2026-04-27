@@ -772,23 +772,34 @@
           el.addEventListener('click', function(){ goGenre(el.dataset.genre); });
         });
 
-        // ── Move search hero below studio slider once React mounts ───────────
+        // ── Move search hero AFTER "Latest Releases" (2nd movie row) ─────────
+        // MovieRow renders with a wrapping div that contains an <h2> title.
+        // We find all such rows and insert after the 2nd one (Latest Releases).
         var moved = false;
         function tryMoveHero() {
           if (moved) return;
-          var slider = document.getElementById('studioSlider');
-          if (!slider || !slider.parentNode) return;
+          // Each MovieRow renders as a <div> with a <h2> inside — grab them all
+          var rows = root.querySelectorAll('h2');
+          // Filter to rows that look like section titles (Trending, Latest, etc.)
+          var movieRows = [];
+          rows.forEach(function(h2){
+            // Only pick h2s that are direct section headers (not nav/footer)
+            var parent = h2.parentNode;
+            if (parent && parent.tagName !== 'NAV') movieRows.push(parent);
+          });
+          // Wait until at least 2 rows are rendered (Trending + Latest Releases)
+          if (movieRows.length < 2) return;
           moved = true;
-          // show it (was hidden until positioned correctly)
+          var afterLatest = movieRows[1]; // index 1 = Latest Releases
           hero.style.display = 'block';
-          slider.parentNode.insertBefore(hero, slider.nextSibling);
+          afterLatest.parentNode.insertBefore(hero, afterLatest.nextSibling);
         }
 
         var poller2 = setInterval(function(){
           tryMoveHero();
           if (moved) clearInterval(poller2);
-        }, 100);
-        setTimeout(function(){ clearInterval(poller2); if(!moved){ hero.style.display='block'; } }, 10000);
+        }, 150);
+        setTimeout(function(){ clearInterval(poller2); if(!moved){ hero.style.display='block'; } }, 12000);
       })();
     </script>
 
