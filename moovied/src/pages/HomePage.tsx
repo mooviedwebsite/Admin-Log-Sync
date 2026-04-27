@@ -3,6 +3,7 @@ import Navbar from "@/components/Navbar";
 import HeroBanner from "@/components/HeroBanner";
 import MovieRow from "@/components/MovieRow";
 import MovieCard from "@/components/MovieCard";
+import SearchHero from "@/components/SearchHero";
 import { SkeletonRow } from "@/components/SkeletonCard";
 import { useMovies } from "@/hooks/useMovies";
 import { type Movie } from "@/lib/api";
@@ -51,10 +52,12 @@ export default function HomePage() {
       <Navbar onSearch={setSearchQuery} searchQuery={searchQuery} />
 
       {searchQuery ? (
+        /* ── Inline search results (when user types in Navbar search) ── */
         <div className="pt-24 pb-12">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mb-6">
             <h2 className="text-xl text-white/80">
-              Search results for <span className="text-yellow-400 font-bold">"{searchQuery}"</span>
+              Search results for{" "}
+              <span className="text-yellow-400 font-bold">"{searchQuery}"</span>
               <span className="text-white/40 ml-2">({filtered.length} found)</span>
             </h2>
           </div>
@@ -72,6 +75,7 @@ export default function HomePage() {
         </div>
       ) : (
         <>
+          {/* ── Hero Banner ── */}
           {loading ? (
             <div className="pt-16">
               <div className="h-[70vh] min-h-[500px] bg-black animate-pulse" />
@@ -80,7 +84,13 @@ export default function HomePage() {
             <HeroBanner movies={movies} />
           )}
 
-          <div className="pt-8 pb-16">
+          {/* ── Search Hero — sits right below the banner ── */}
+          <div className="pt-6 pb-2">
+            <SearchHero />
+          </div>
+
+          {/* ── Movie Rows ── */}
+          <div className="pt-2 pb-16">
             {loading ? (
               <>
                 <SkeletonRow />
@@ -102,7 +112,9 @@ export default function HomePage() {
 
       <footer className="border-t border-white/10 py-8 text-center text-white/30 text-sm">
         <div className="flex items-center justify-center gap-2 mb-2">
-          <span className="text-white font-black tracking-widest">MOOV<span className="text-yellow-400">IED</span></span>
+          <span className="text-white font-black tracking-widest">
+            MOOV<span className="text-yellow-400">IED</span>
+          </span>
         </div>
         <p>Stream &amp; Download your favorite movies.</p>
       </footer>
