@@ -84,11 +84,6 @@ export default function HomePage() {
             <HeroBanner movies={movies} />
           )}
 
-          {/* ── Search Hero — sits right below the banner ── */}
-          <div className="pt-6 pb-2">
-            <SearchHero />
-          </div>
-
           {/* ── Movie Rows ── */}
           <div className="pt-2 pb-16">
             {loading ? (
@@ -101,6 +96,10 @@ export default function HomePage() {
               <>
                 <MovieRow title="Trending Now" movies={trending} />
                 <MovieRow title="Latest Releases" movies={latest} />
+
+                {/* ── Search Hero — after Latest Releases ── */}
+                <SearchHero />
+
                 {Object.entries(genreGroups).map(([genre, genreMovies]) => (
                   <MovieRow key={genre} title={genre} movies={genreMovies} />
                 ))}
