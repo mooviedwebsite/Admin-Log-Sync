@@ -37,47 +37,34 @@
     overflow: hidden;
 }
 
-/* ── Layer 0: Poster background (instant fallback) ────────────────────────── */
-.banner-bg {
+/* ── Layer 0: Poster background — <img> avoids the scroll-reload bug ─────── */
+/*   background-image re-fetches on visibility change; <img> stays cached.    */
+.banner-bg-img {
     position: absolute;
-    top: 0; left: 0;
-    width: 100%; height: 100%;
-    background-size: cover;
-    background-position: center top;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    object-position: center top;
     opacity: 0;
-    transition: opacity 1.2s ease-in-out;
+    transition: opacity 0.9s ease-in-out;
     z-index: 0;
     /* Cinematic poster tone */
     filter: brightness(0.72) saturate(0.92);
-}
-.banner-bg.active { opacity: 1; }
-
-/* ── Layer 1: YouTube video background ────────────────────────────────────── */
-.hb-yt-wrap {
-    position: absolute;
-    inset: 0;
-    z-index: 1;
-    overflow: hidden;
+    /* Critical: prevent the browser from discarding the decoded bitmap */
+    will-change: opacity;
+    /* Pointer events off — it's purely decorative */
     pointer-events: none;
+    /* Never let the browser treat this as a lazy-load candidate */
+    content-visibility: visible;
 }
-.hb-yt-iframe {
-    position: absolute;
-    /* Scale to cover regardless of aspect ratio */
-    width: max(100%, 177.78vh);
-    height: max(100%, 56.25vw);
-    top: 50%; left: 50%;
-    transform: translate(-50%, -50%);
-    border: none;
-    opacity: 0;
-    transition: opacity 1.4s ease;
-    /* Modern cinematic grade — visible but moody */
-    filter: brightness(0.65) contrast(1.06) saturate(1.0);
-}
-.hb-yt-iframe.hb-yt-ready {
+
+.banner-bg-img.active {
     opacity: 1;
 }
 
-/* ── Layer 2: Dark cinematic overlay (covers both poster and video) ────────── */
+/* ── Layer 2: Dark cinematic overlay ────────────────────────────────────── */
 .hb-dark-overlay {
     position: absolute;
     inset: 0;
@@ -641,11 +628,6 @@
         width: 32px;
         height: 2.5px;
     }
-
-    /* YouTube background — keep it behind everything on mobile */
-    .hb-yt-bg-wrap {
-        pointer-events: none;
-    }
 }
 
 /* Mobile responsive — phone */
@@ -689,7 +671,7 @@
 
 @media (prefers-reduced-motion: reduce) {
     .carousel-track,
-    .banner-bg,
+    .banner-bg-img,
     .movie-banner .hb-title,
     .movie-banner .hb-badges,
     .movie-banner .hb-categories,
