@@ -3,7 +3,6 @@
   <head>
     <!-- moovied-inject -->
     <!-- moovied-inject -->
-    <script src="https://cdn.tailwindcss.com"></script>
     <script>
     // ── Moovied Clean URL system ──────────────────────────────────────────────
     // Loads slug-map.json synchronously (XHR) before React mounts so the map
@@ -528,7 +527,7 @@
     <script type="module" crossorigin src="/Admin-Log-Sync/assets/index-Mvd2026N.js"></script>
     <link rel="stylesheet" crossorigin href="/Admin-Log-Sync/assets/index-aJ7HeroO.css">
     <style>
-      /* MOOVIED premium download cards */
+      /* ── MOOVIED premium download cards ──────────────────────────────────── */
       .mvd-dl-card{position:relative;overflow:hidden;background:rgba(255,255,255,0.035);border:1px solid rgba(255,255,255,0.08);border-radius:22px;padding:18px 20px;transition:border-color .5s,transform .3s;margin-bottom:14px;font-family:-apple-system,BlinkMacSystemFont,'SF Pro Display','Inter',sans-serif}
       .mvd-dl-card:hover{transform:translateY(-2px)}
       .mvd-dl-card.mvd-active{border-color:rgba(74,222,128,0.2)}
@@ -572,7 +571,7 @@
       .mvd-dl-scan{position:absolute;left:0;right:0;height:2px;top:-2px;background:linear-gradient(90deg,transparent,rgba(74,222,128,0.6),transparent);pointer-events:none;opacity:0}
       .mvd-dl-card.mvd-done .mvd-dl-scan{animation:mvdScan 1s ease-in forwards}
       @keyframes mvdScan{0%{top:-2px;opacity:.7}100%{top:100%;opacity:0}}
-      @media (max-width:640px){
+      @media(max-width:640px){
         .mvd-dl-card{padding:14px 14px;border-radius:16px;margin-bottom:10px}
         .mvd-dl-row{gap:10px}
         .mvd-dl-icon{width:38px;height:38px;border-radius:11px}
@@ -582,20 +581,13 @@
         .mvd-dl-spd{min-width:60px}
         .mvd-dl-btn{padding:6px 12px;font-size:10px;border-radius:8px}
         .mvd-dl-pct{font-size:10px;min-width:28px}
-
-      /* ══════════════════════════════════════════════════════════════════════
-         STATIC SECTIONS — always visible, zero JS dependency
-         Layout: #root (React: navbar + banner) → #static-sections (slider + search)
-         ══════════════════════════════════════════════════════════════════════ */
-      #root { display: block; }
-
-      /* ── Separator between banner and our static sections ── */
-      #static-sections {
-        background: #000;
-        width: 100%;
       }
 
-      /* ── Studio Logo Slider ── */
+      /* ── Static sections base ─────────────────────────────────────────────── */
+      #static-sections{background:#000;width:100%}
+      body.not-home #static-sections{display:none !important}
+
+      /* ── Studio Logo Slider ───────────────────────────────────────────────── */
       .studio-slider-wrap{position:relative;overflow:hidden;width:100%;background:#000;padding:10px 0}
       .studio-track{display:flex;gap:clamp(10px,2vw,22px);width:max-content;animation:studioScroll 30s linear infinite;padding:clamp(8px,2vw,16px)}
       .studio-pill{display:flex;align-items:center;gap:clamp(6px,1.5vw,12px);padding:clamp(6px,1.5vw,10px) clamp(12px,2vw,18px);border-radius:999px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.08);backdrop-filter:blur(14px);color:#fff;font-size:clamp(10px,1.2vw,13px);font-weight:600;transition:all .35s ease;white-space:nowrap;cursor:pointer;font-family:'Inter',sans-serif;letter-spacing:.5px}
@@ -604,7 +596,7 @@
       .studio-logo-box::after{content:"";position:absolute;top:0;left:-100%;width:60%;height:100%;background:linear-gradient(120deg,transparent,rgba(255,255,255,0.6),transparent);transform:skewX(-20deg)}
       .studio-pill.active .studio-logo-box::after{animation:studioShine 1s ease}
       .studio-slider-wrap[data-active] .studio-pill{opacity:0.25;transform:scale(0.95)}
-      .studio-pill.active{opacity:1!important;transform:scale(1.08)!important;background:rgba(255,255,255,0.18);box-shadow:0 0 20px rgba(255,255,255,0.15),0 10px 25px rgba(255,255,255,0.08)}
+      .studio-pill.active{opacity:1 !important;transform:scale(1.08) !important;background:rgba(255,255,255,0.18);box-shadow:0 0 20px rgba(255,255,255,0.15),0 10px 25px rgba(255,255,255,0.08)}
       .studio-slider-wrap::before,.studio-slider-wrap::after{content:"";position:absolute;top:0;width:clamp(30px,8vw,80px);height:100%;z-index:2;pointer-events:none}
       .studio-slider-wrap::before{left:0;background:linear-gradient(to right,#000,transparent)}
       .studio-slider-wrap::after{right:0;background:linear-gradient(to left,#000,transparent)}
@@ -614,7 +606,7 @@
       @media(min-width:768px){.studio-track{animation-duration:28s}}
       @media(min-width:1200px){.studio-track{animation-duration:22s}}
 
-      /* ── Search Hero ── */
+      /* ── Search Hero ──────────────────────────────────────────────────────── */
       .sh-wrap{padding:20px 16px 8px}
       @media(min-width:768px){.sh-wrap{padding:24px 24px 8px}}
       @media(min-width:1024px){.sh-wrap{padding:28px 32px 10px}}
@@ -624,25 +616,21 @@
       .sh-bg{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;filter:brightness(0.3)}
       .sh-overlay{position:absolute;inset:0;background:linear-gradient(to bottom,rgba(0,0,0,0.55),#000)}
       .sh-content{position:relative;z-index:10;height:100%;display:flex;flex-direction:column;justify-content:center;align-items:center;text-align:center;padding:0 16px}
-      .sh-title{color:#fff;font-weight:600;font-size:clamp(18px,3vw,36px);margin-bottom:8px;font-family:'Inter',sans-serif}
-      .sh-sub{color:rgba(255,255,255,0.55);font-size:clamp(11px,1.5vw,15px);margin-bottom:20px;font-family:'Inter',sans-serif}
+      .sh-title{color:#fff !important;font-weight:600;font-size:clamp(18px,3vw,36px);margin:0 0 8px;font-family:'Inter',sans-serif}
+      .sh-sub{color:rgba(255,255,255,0.55) !important;font-size:clamp(11px,1.5vw,15px);margin:0 0 20px;font-family:'Inter',sans-serif}
       .sh-row{display:flex;flex-direction:column;gap:12px;width:100%;max-width:640px}
       @media(min-width:640px){.sh-row{flex-direction:row}}
       .sh-input-wrap{display:flex;align-items:center;gap:12px;padding:12px 16px;border-radius:999px;background:rgba(255,255,255,0.07);backdrop-filter:blur(18px);border:1px solid rgba(255,255,255,0.13);flex:1;transition:border-color .25s,box-shadow .25s}
       .sh-input-wrap:focus-within{border-color:rgba(255,255,255,0.35);box-shadow:0 0 0 3px rgba(255,255,255,0.06)}
-      .sh-input{background:transparent;border:none;outline:none;color:#fff;font-size:clamp(13px,1.4vw,16px);width:100%;font-family:'Inter',sans-serif}
+      .sh-input{background:transparent !important;border:none !important;outline:none !important;color:#fff !important;font-size:clamp(13px,1.4vw,16px);width:100%;font-family:'Inter',sans-serif;box-shadow:none !important}
       .sh-input::placeholder{color:rgba(255,255,255,0.4)}
-      .sh-btn{padding:12px 24px;border-radius:999px;background:#fff;color:#000;font-weight:600;font-size:clamp(13px,1.4vw,16px);display:flex;align-items:center;justify-content:center;gap:8px;cursor:pointer;border:none;font-family:'Inter',sans-serif;transition:box-shadow .25s;white-space:nowrap}
+      .sh-btn{padding:12px 24px !important;border-radius:999px !important;background:#fff !important;color:#000 !important;font-weight:600;font-size:clamp(13px,1.4vw,16px);display:flex !important;align-items:center;justify-content:center;gap:8px;cursor:pointer;border:none !important;font-family:'Inter',sans-serif;transition:box-shadow .25s;white-space:nowrap}
       .sh-btn:hover{box-shadow:0 0 22px rgba(255,255,255,0.25)}
       .sh-chips,.sh-popular{display:flex;flex-wrap:wrap;justify-content:center;gap:8px;margin-top:14px}
-      .sh-chip{background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.1);border-radius:999px;padding:4px 14px;color:rgba(255,255,255,0.8);font-size:clamp(10px,1.2vw,13px);cursor:pointer;font-family:'Inter',sans-serif;transition:background .2s}
-      .sh-chip:hover{background:rgba(255,255,255,0.16)}
-      .sh-popular .sh-chip{color:rgba(255,255,255,0.65);padding:3px 12px;font-size:clamp(9px,1vw,12px)}
+      .sh-chip{background:rgba(255,255,255,0.08) !important;border:1px solid rgba(255,255,255,0.1) !important;border-radius:999px !important;padding:4px 14px !important;color:rgba(255,255,255,0.8) !important;font-size:clamp(10px,1.2vw,13px);cursor:pointer;font-family:'Inter',sans-serif;transition:background .2s;display:inline-block}
+      .sh-chip:hover{background:rgba(255,255,255,0.18) !important}
+      .sh-popular .sh-chip{color:rgba(255,255,255,0.65) !important;padding:3px 12px !important;font-size:clamp(9px,1vw,12px)}
       .sh-hint{color:rgba(255,255,255,0.3);font-size:clamp(9px,1vw,11px);margin-top:10px;font-family:'Inter',sans-serif}
-
-      /* ── Only show static sections on home page (/) ── */
-      /* Hide when React navigates away from home */
-      body.not-home #static-sections { display: none !important; }
     </style>
     <link rel="stylesheet" href="footer.css?v=2">
   </head>
