@@ -9,34 +9,12 @@ interface HeroBannerProps {
 
 const AUTO_PLAY_INTERVAL = 7000;
 
-/** Extract YouTube video ID from any valid YT URL */
-function extractYouTubeId(url: string | undefined): string | null {
-  if (!url) return null;
-  const match = url.match(
-    /(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/embed\/|youtube\.com\/v\/)([a-zA-Z0-9_-]{11})/
-  );
-  return match ? match[1] : null;
-}
-
-/** Build the fast-loading, no-UI YouTube embed URL */
-function ytEmbedUrl(videoId: string): string {
-  const params = new URLSearchParams({
-    autoplay: "1",
-    mute: "1",
-    loop: "1",
-    playlist: videoId,
-    controls: "0",
-    showinfo: "0",
-    rel: "0",
-    modestbranding: "1",
-    iv_load_policy: "3",
-    disablekb: "1",
-    fs: "0",
-    cc_load_policy: "0",
-    playsinline: "1",
-    start: "0",
-  });
-  return `https://www.youtube-nocookie.com/embed/${videoId}?${params.toString()}`;
+// Preload an image URL into the browser cache so it's ready instantly
+function preloadImage(url: string) {
+  if (!url) return;
+  const img = new Image();
+  img.fetchPriority = "high";
+  img.src = url;
 }
 
 export default function HeroBanner({ movies }: HeroBannerProps) {
@@ -46,30 +24,44 @@ export default function HeroBanner({ movies }: HeroBannerProps) {
   const [isDragging, setIsDragging] = useState(false);
   const [dragStartX, setDragStartX] = useState(0);
   const [dragOffset, setDragOffset] = useState(0);
-  const [ytReady, setYtReady] = useState(false);
+  // Track which poster URLs have already been loaded into browser cache
+  const loadedRef = useRef<Set<string>>(new Set());
 
   const trackRef = useRef<HTMLDivElement>(null);
   const animFrameRef = useRef<number | null>(null);
   const startTimeRef = useRef<number>(Date.now());
-  const ytTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const goTo = useCallback((idx: number) => {
-    const next = (idx + featured.length) % featured.length;
-    setIsActive(false);
-    setYtReady(false);
-    setTimeout(() => {
-      setCurrent(next);
-      startTimeRef.current = Date.now();
-      setIsActive(true);
-    }, 80);
-  }, [featured.length]);
+  // Preload ALL featured posters on mount so they're in cache immediately
+  useEffect(() => {
+    featured.forEach((m) => {
+      if (m.poster_url && !loadedRef.current.has(m.poster_url)) {
+        loadedRef.current.add(m.poster_url);
+        preloadImage(m.poster_url);
+      }
+    });
+  }, [featured.length]); // eslint-disable-line
 
+  const goTo = useCallback(
+    (idx: number) => {
+      const next = (idx + featured.length) % featured.length;
+      setIsActive(false);
+      setTimeout(() => {
+        setCurrent(next);
+        startTimeRef.current = Date.now();
+        setIsActive(true);
+      }, 80);
+    },
+    [featured.length]
+  );
+
+  // Activate the first slide
   useEffect(() => {
     if (!featured.length) return;
     const t = setTimeout(() => setIsActive(true), 100);
     return () => clearTimeout(t);
   }, [featured.length]);
 
+  // Auto-advance timer
   useEffect(() => {
     if (featured.length <= 1) return;
     const tick = () => {
@@ -81,7 +73,9 @@ export default function HeroBanner({ movies }: HeroBannerProps) {
       }
     };
     animFrameRef.current = requestAnimationFrame(tick);
-    return () => { if (animFrameRef.current) cancelAnimationFrame(animFrameRef.current); };
+    return () => {
+      if (animFrameRef.current) cancelAnimationFrame(animFrameRef.current);
+    };
   }, [current, featured.length, goTo]);
 
   const handlePointerDown = (e: React.PointerEvent) => {
@@ -106,17 +100,9 @@ export default function HeroBanner({ movies }: HeroBannerProps) {
     }
   };
 
-  // Fade video in as soon as the iframe reports loaded
-  const handleYtLoad = () => {
-    if (ytTimerRef.current) clearTimeout(ytTimerRef.current);
-    ytTimerRef.current = setTimeout(() => setYtReady(true), 150);
-  };
-
   if (!featured.length) return null;
 
   const translateX = `calc(${-current * 100}% + ${dragOffset}px)`;
-  const currentMovie = featured[current];
-  const currentVideoId = extractYouTubeId(currentMovie?.yt_link);
 
   return (
     <div className="carousel-container">
@@ -136,26 +122,18 @@ export default function HeroBanner({ movies }: HeroBannerProps) {
           {featured.map((m, idx) => (
             <div key={m.id} className={`movie-banner${idx === current ? " active" : ""}`}>
 
-              {/* Layer 0: Poster (instant fallback) */}
-              <div
-                className={`banner-bg${idx === current && isActive ? " active" : ""}`}
-                style={{ backgroundImage: `url('${m.poster_url}')` }}
+              {/* Layer 0: Poster image — always rendered, never unmounted */}
+              {/* Using <img> with loading="eager" prevents the scroll-reload bug */}
+              <img
+                className={`banner-bg-img${idx === current && isActive ? " active" : ""}`}
+                src={m.poster_url}
+                alt=""
+                aria-hidden="true"
+                loading="eager"
+                decoding="async"
+                fetchPriority={idx === 0 ? "high" : "low"}
+                draggable={false}
               />
-
-              {/* Layer 1: YouTube video — only rendered for the active slide */}
-              {idx === current && currentVideoId && (
-                <div className="hb-yt-wrap">
-                  <iframe
-                    key={`yt-${m.id}`}
-                    className={`hb-yt-iframe${ytReady ? " hb-yt-ready" : ""}`}
-                    src={ytEmbedUrl(currentVideoId)}
-                    allow="autoplay; encrypted-media"
-                    frameBorder="0"
-                    onLoad={handleYtLoad}
-                    title="background"
-                  />
-                </div>
-              )}
 
               {/* Layer 2: Dark cinematic gradient overlay */}
               <div className="hb-dark-overlay" />
