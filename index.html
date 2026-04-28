@@ -2,6 +2,7 @@
 <html lang="en">
   <head>
     <!-- moovied-inject -->
+    <!-- moovied-inject -->
     <script>
     // ── Moovied Clean URL system ──────────────────────────────────────────────
     // Loads slug-map.json synchronously (XHR) before React mounts so the map
@@ -523,7 +524,6 @@
       } catch(e) {}
     })();
     </script>
-
     <script type="module" crossorigin src="/Admin-Log-Sync/assets/index-Mvd2026N.js"></script>
     <link rel="stylesheet" crossorigin href="/Admin-Log-Sync/assets/index-aJ7HeroO.css">
     <style>
@@ -581,9 +581,20 @@
         .mvd-dl-spd{min-width:60px}
         .mvd-dl-btn{padding:6px 12px;font-size:10px;border-radius:8px}
         .mvd-dl-pct{font-size:10px;min-width:28px}
+
+      /* ══════════════════════════════════════════════════════════════════════
+         STATIC SECTIONS — always visible, zero JS dependency
+         Layout: #root (React: navbar + banner) → #static-sections (slider + search)
+         ══════════════════════════════════════════════════════════════════════ */
+      #root { display: block; }
+
+      /* ── Separator between banner and our static sections ── */
+      #static-sections {
+        background: #000;
+        width: 100%;
       }
 
-      /* ── Studio Logo Slider ────────────────────────────────────────────────── */
+      /* ── Studio Logo Slider ── */
       .studio-slider-wrap{position:relative;overflow:hidden;width:100%;background:#000;padding:10px 0}
       .studio-track{display:flex;gap:clamp(10px,2vw,22px);width:max-content;animation:studioScroll 30s linear infinite;padding:clamp(8px,2vw,16px)}
       .studio-pill{display:flex;align-items:center;gap:clamp(6px,1.5vw,12px);padding:clamp(6px,1.5vw,10px) clamp(12px,2vw,18px);border-radius:999px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.08);backdrop-filter:blur(14px);color:#fff;font-size:clamp(10px,1.2vw,13px);font-weight:600;transition:all .35s ease;white-space:nowrap;cursor:pointer;font-family:'Inter',sans-serif;letter-spacing:.5px}
@@ -602,10 +613,12 @@
       @media(min-width:768px){.studio-track{animation-duration:28s}}
       @media(min-width:1200px){.studio-track{animation-duration:22s}}
 
-      /* ── Search Hero ─────────────────────────────────────────────────────── */
-      .sh-hero{position:relative;border-radius:20px;overflow:hidden;padding:1px;background:linear-gradient(120deg,rgba(255,255,255,0.25),rgba(255,255,255,0.05),rgba(255,255,255,0.25));margin:24px 16px 8px;height:clamp(300px,38vw,460px);display:none}
-      @media(min-width:768px){.sh-hero{border-radius:28px;margin:24px 24px 8px}}
-      @media(min-width:1024px){.sh-hero{margin:24px 32px 8px}}
+      /* ── Search Hero ── */
+      .sh-wrap{padding:20px 16px 8px}
+      @media(min-width:768px){.sh-wrap{padding:24px 24px 8px}}
+      @media(min-width:1024px){.sh-wrap{padding:28px 32px 10px}}
+      .sh-hero{position:relative;border-radius:20px;overflow:hidden;padding:1px;background:linear-gradient(120deg,rgba(255,255,255,0.25),rgba(255,255,255,0.05),rgba(255,255,255,0.25));height:clamp(280px,35vw,440px)}
+      @media(min-width:768px){.sh-hero{border-radius:28px}}
       .sh-inner{position:relative;height:100%;border-radius:inherit;overflow:hidden;background:#000}
       .sh-bg{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;filter:brightness(0.3)}
       .sh-overlay{position:absolute;inset:0;background:linear-gradient(to bottom,rgba(0,0,0,0.55),#000)}
@@ -625,182 +638,170 @@
       .sh-chip:hover{background:rgba(255,255,255,0.16)}
       .sh-popular .sh-chip{color:rgba(255,255,255,0.65);padding:3px 12px;font-size:clamp(9px,1vw,12px)}
       .sh-hint{color:rgba(255,255,255,0.3);font-size:clamp(9px,1vw,11px);margin-top:10px;font-family:'Inter',sans-serif}
+
+      /* ── Only show static sections on home page (/) ── */
+      /* Hide when React navigates away from home */
+      body.not-home #static-sections { display: none !important; }
     </style>
     <link rel="stylesheet" href="footer.css?v=2">
   </head>
   <body>
 
-    <!-- ── Studio Logo Slider — renders instantly before React loads ── -->
-    <div class="studio-slider-wrap" id="studioSlider">
-      <div class="studio-track" id="studioTrack">
-        <!-- original set -->
-        <div class="studio-pill"><div class="studio-logo-box"><img src="https://upload.wikimedia.org/wikipedia/commons/5/5e/Paramount_Pictures_logo.svg" alt="Paramount"></div>PARAMOUNT</div>
-        <div class="studio-pill"><div class="studio-logo-box"><img src="https://upload.wikimedia.org/wikipedia/commons/3/3e/Disney%2B_logo.svg" alt="Disney"></div>DISNEY</div>
-        <div class="studio-pill"><div class="studio-logo-box"><img src="https://upload.wikimedia.org/wikipedia/commons/4/4d/DreamWorks_Animation_logo.svg" alt="DreamWorks"></div>DREAMWORKS</div>
-        <div class="studio-pill"><div class="studio-logo-box"><img src="https://upload.wikimedia.org/wikipedia/commons/d/de/HBO_logo.svg" alt="HBO"></div>HBO</div>
-        <div class="studio-pill"><div class="studio-logo-box"><img src="https://upload.wikimedia.org/wikipedia/commons/7/7a/Pixar_logo.svg" alt="Pixar"></div>PIXAR</div>
-        <div class="studio-pill"><div class="studio-logo-box"><img src="https://upload.wikimedia.org/wikipedia/commons/0/08/Netflix_2015_logo.svg" alt="Netflix"></div>NETFLIX</div>
-        <div class="studio-pill"><div class="studio-logo-box"><img src="https://upload.wikimedia.org/wikipedia/commons/7/7e/Universal_Pictures_logo.svg" alt="Universal"></div>UNIVERSAL</div>
-        <div class="studio-pill"><div class="studio-logo-box"><img src="https://upload.wikimedia.org/wikipedia/commons/0/04/MarvelLogo.svg" alt="Marvel"></div>MARVEL</div>
-        <!-- duplicate set for seamless infinite scroll -->
-        <div class="studio-pill"><div class="studio-logo-box"><img src="https://upload.wikimedia.org/wikipedia/commons/5/5e/Paramount_Pictures_logo.svg" alt="Paramount"></div>PARAMOUNT</div>
-        <div class="studio-pill"><div class="studio-logo-box"><img src="https://upload.wikimedia.org/wikipedia/commons/3/3e/Disney%2B_logo.svg" alt="Disney"></div>DISNEY</div>
-        <div class="studio-pill"><div class="studio-logo-box"><img src="https://upload.wikimedia.org/wikipedia/commons/4/4d/DreamWorks_Animation_logo.svg" alt="DreamWorks"></div>DREAMWORKS</div>
-        <div class="studio-pill"><div class="studio-logo-box"><img src="https://upload.wikimedia.org/wikipedia/commons/d/de/HBO_logo.svg" alt="HBO"></div>HBO</div>
-        <div class="studio-pill"><div class="studio-logo-box"><img src="https://upload.wikimedia.org/wikipedia/commons/7/7a/Pixar_logo.svg" alt="Pixar"></div>PIXAR</div>
-        <div class="studio-pill"><div class="studio-logo-box"><img src="https://upload.wikimedia.org/wikipedia/commons/0/08/Netflix_2015_logo.svg" alt="Netflix"></div>NETFLIX</div>
-        <div class="studio-pill"><div class="studio-logo-box"><img src="https://upload.wikimedia.org/wikipedia/commons/7/7e/Universal_Pictures_logo.svg" alt="Universal"></div>UNIVERSAL</div>
-        <div class="studio-pill"><div class="studio-logo-box"><img src="https://upload.wikimedia.org/wikipedia/commons/0/04/MarvelLogo.svg" alt="Marvel"></div>MARVEL</div>
-      </div>
-    </div>
-
-    <!-- ── Search Hero — renders before React loads ── -->
-    <div class="sh-hero" id="searchHero">
-      <div class="sh-inner">
-        <img class="sh-bg" src="https://res.cloudinary.com/digorezin/image/upload/v1745851537/Netflix-Background_bgtauh.jpg" alt="">
-        <div class="sh-overlay"></div>
-        <div class="sh-content">
-          <h1 class="sh-title">Find Your Next Movie</h1>
-          <p class="sh-sub">Search from thousands of movies &amp; shows</p>
-          <div class="sh-row">
-            <div class="sh-input-wrap">
-              <svg width="20" height="20" fill="none" stroke="rgba(255,255,255,0.5)" stroke-width="2" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-              <input class="sh-input" id="shInput" type="text" placeholder="Search movies, shows..." autocomplete="off">
-            </div>
-            <button class="sh-btn" id="shBtn">
-              <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7"/></svg>
-              Search
-            </button>
-          </div>
-          <div class="sh-chips">
-            <span class="sh-chip" data-genre="">All</span>
-            <span class="sh-chip" data-genre="Movies">Movies</span>
-            <span class="sh-chip" data-genre="TV Shows">TV Shows</span>
-            <span class="sh-chip" data-genre="Anime">Anime</span>
-          </div>
-          <div class="sh-popular">
-            <span class="sh-chip" data-search="Avengers">Avengers</span>
-            <span class="sh-chip" data-search="Batman">Batman</span>
-            <span class="sh-chip" data-search="Interstellar">Interstellar</span>
-            <span class="sh-chip" data-search="Joker">Joker</span>
-            <span class="sh-chip" data-search="Inception">Inception</span>
-          </div>
-          <p class="sh-hint">10,000+ titles available</p>
-        </div>
-      </div>
-    </div>
-
+    <!-- React mounts here: Navbar + HeroBanner + MovieRows + Footer -->
     <div id="root"></div>
 
-    <!-- Studio Slider interaction script -->
+    <!-- ══════════════════════════════════════════════════════════════════════
+         STATIC SECTIONS — always painted, zero race condition
+         Sits right after #root so it naturally appears below the banner.
+         React's MovieRows follow inside #root after these sections.
+         ══════════════════════════════════════════════════════════════════════ -->
+    <div id="static-sections">
+
+      <!-- Studio Logo Slider -->
+      <div class="studio-slider-wrap" id="studioSlider">
+        <div class="studio-track" id="studioTrack">
+          <div class="studio-pill"><div class="studio-logo-box"><img src="https://upload.wikimedia.org/wikipedia/commons/5/5e/Paramount_Pictures_logo.svg" alt="Paramount" loading="lazy"></div>PARAMOUNT</div>
+          <div class="studio-pill"><div class="studio-logo-box"><img src="https://upload.wikimedia.org/wikipedia/commons/3/3e/Disney%2B_logo.svg" alt="Disney" loading="lazy"></div>DISNEY</div>
+          <div class="studio-pill"><div class="studio-logo-box"><img src="https://upload.wikimedia.org/wikipedia/commons/4/4d/DreamWorks_Animation_logo.svg" alt="DreamWorks" loading="lazy"></div>DREAMWORKS</div>
+          <div class="studio-pill"><div class="studio-logo-box"><img src="https://upload.wikimedia.org/wikipedia/commons/d/de/HBO_logo.svg" alt="HBO" loading="lazy"></div>HBO</div>
+          <div class="studio-pill"><div class="studio-logo-box"><img src="https://upload.wikimedia.org/wikipedia/commons/7/7a/Pixar_logo.svg" alt="Pixar" loading="lazy"></div>PIXAR</div>
+          <div class="studio-pill"><div class="studio-logo-box"><img src="https://upload.wikimedia.org/wikipedia/commons/0/08/Netflix_2015_logo.svg" alt="Netflix" loading="lazy"></div>NETFLIX</div>
+          <div class="studio-pill"><div class="studio-logo-box"><img src="https://upload.wikimedia.org/wikipedia/commons/7/7e/Universal_Pictures_logo.svg" alt="Universal" loading="lazy"></div>UNIVERSAL</div>
+          <div class="studio-pill"><div class="studio-logo-box"><img src="https://upload.wikimedia.org/wikipedia/commons/0/04/MarvelLogo.svg" alt="Marvel" loading="lazy"></div>MARVEL</div>
+          <!-- duplicate for seamless loop -->
+          <div class="studio-pill"><div class="studio-logo-box"><img src="https://upload.wikimedia.org/wikipedia/commons/5/5e/Paramount_Pictures_logo.svg" alt="" loading="lazy"></div>PARAMOUNT</div>
+          <div class="studio-pill"><div class="studio-logo-box"><img src="https://upload.wikimedia.org/wikipedia/commons/3/3e/Disney%2B_logo.svg" alt="" loading="lazy"></div>DISNEY</div>
+          <div class="studio-pill"><div class="studio-logo-box"><img src="https://upload.wikimedia.org/wikipedia/commons/4/4d/DreamWorks_Animation_logo.svg" alt="" loading="lazy"></div>DREAMWORKS</div>
+          <div class="studio-pill"><div class="studio-logo-box"><img src="https://upload.wikimedia.org/wikipedia/commons/d/de/HBO_logo.svg" alt="" loading="lazy"></div>HBO</div>
+          <div class="studio-pill"><div class="studio-logo-box"><img src="https://upload.wikimedia.org/wikipedia/commons/7/7a/Pixar_logo.svg" alt="" loading="lazy"></div>PIXAR</div>
+          <div class="studio-pill"><div class="studio-logo-box"><img src="https://upload.wikimedia.org/wikipedia/commons/0/08/Netflix_2015_logo.svg" alt="" loading="lazy"></div>NETFLIX</div>
+          <div class="studio-pill"><div class="studio-logo-box"><img src="https://upload.wikimedia.org/wikipedia/commons/7/7e/Universal_Pictures_logo.svg" alt="" loading="lazy"></div>UNIVERSAL</div>
+          <div class="studio-pill"><div class="studio-logo-box"><img src="https://upload.wikimedia.org/wikipedia/commons/0/04/MarvelLogo.svg" alt="" loading="lazy"></div>MARVEL</div>
+        </div>
+      </div>
+
+      <!-- Search Hero -->
+      <div class="sh-wrap">
+        <div class="sh-hero">
+          <div class="sh-inner">
+            <img class="sh-bg" src="https://res.cloudinary.com/digorezin/image/upload/v1745851537/Netflix-Background_bgtauh.jpg" alt="" loading="lazy">
+            <div class="sh-overlay"></div>
+            <div class="sh-content">
+              <h1 class="sh-title">Find Your Next Movie</h1>
+              <p class="sh-sub">Search from thousands of movies &amp; shows</p>
+              <div class="sh-row">
+                <div class="sh-input-wrap">
+                  <svg width="20" height="20" fill="none" stroke="rgba(255,255,255,0.5)" stroke-width="2" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+                  <input class="sh-input" id="shInput" type="text" placeholder="Search movies, shows..." autocomplete="off">
+                </div>
+                <button class="sh-btn" id="shBtn">
+                  <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7"/></svg>
+                  Search
+                </button>
+              </div>
+              <div class="sh-chips">
+                <span class="sh-chip" data-genre="">All</span>
+                <span class="sh-chip" data-genre="Movies">Movies</span>
+                <span class="sh-chip" data-genre="TV Shows">TV Shows</span>
+                <span class="sh-chip" data-genre="Anime">Anime</span>
+              </div>
+              <div class="sh-popular">
+                <span class="sh-chip" data-search="Avengers">Avengers</span>
+                <span class="sh-chip" data-search="Batman">Batman</span>
+                <span class="sh-chip" data-search="Interstellar">Interstellar</span>
+                <span class="sh-chip" data-search="Joker">Joker</span>
+                <span class="sh-chip" data-search="Inception">Inception</span>
+              </div>
+              <p class="sh-hint">10,000+ titles available</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div><!-- /#static-sections -->
+
     <script>
-      (function(){
-        var pills = document.querySelectorAll('.studio-pill');
-        var track = document.getElementById('studioTrack');
-        var wrap  = document.getElementById('studioSlider');
-        pills.forEach(function(pill){
-          function on(){
-            track.style.animationPlayState = 'paused';
-            wrap.dataset.active = '1';
-            pills.forEach(function(p){ p.classList.remove('active'); });
-            pill.classList.add('active');
-          }
-          function off(){
-            track.style.animationPlayState = 'running';
-            delete wrap.dataset.active;
-            pills.forEach(function(p){ p.classList.remove('active'); });
-          }
-          pill.addEventListener('mouseenter', on);
-          pill.addEventListener('mouseleave', off);
-          pill.addEventListener('click', function(){
-            pill.classList.contains('active') ? off() : on();
-          });
+    // ══════════════════════════════════════════════════════════════════════════
+    // STATIC SECTIONS CONTROLLER
+    // No DOM moving. No polling for React elements.
+    // Just: show on home page, hide on all other pages.
+    // ══════════════════════════════════════════════════════════════════════════
+    (function(){
+      var BASE = '/Admin-Log-Sync';
+
+      // ── Show/hide based on current path ──────────────────────────────────
+      function isHome() {
+        var p = location.pathname.replace(/\/$/, '') || '/';
+        // Home = /Admin-Log-Sync or /Admin-Log-Sync/ or just /
+        return p === BASE || p === '' || p === '/';
+      }
+
+      function syncVisibility() {
+        if (isHome()) {
+          document.body.classList.remove('not-home');
+        } else {
+          document.body.classList.add('not-home');
+        }
+      }
+
+      // Run immediately and on every navigation
+      syncVisibility();
+
+      // Hook React Router navigation (pushState/popstate)
+      var _ps = history.pushState.bind(history);
+      history.pushState = function(s, t, u) {
+        var r = _ps(s, t, u);
+        syncVisibility();
+        return r;
+      };
+      window.addEventListener('popstate', syncVisibility);
+
+      // ── Studio Slider interaction ─────────────────────────────────────────
+      var pills = document.querySelectorAll('.studio-pill');
+      var track = document.getElementById('studioTrack');
+      var wrap  = document.getElementById('studioSlider');
+      pills.forEach(function(pill){
+        function on(){
+          track.style.animationPlayState = 'paused';
+          wrap.dataset.active = '1';
+          pills.forEach(function(p){ p.classList.remove('active'); });
+          pill.classList.add('active');
+        }
+        function off(){
+          track.style.animationPlayState = 'running';
+          delete wrap.dataset.active;
+          pills.forEach(function(p){ p.classList.remove('active'); });
+        }
+        pill.addEventListener('mouseenter', on);
+        pill.addEventListener('mouseleave', off);
+        pill.addEventListener('click', function(){
+          pill.classList.contains('active') ? off() : on();
         });
+      });
 
-        // ── Move slider below hero banner once React mounts ──────────────────
-        // React renders into #root. Once #root has children (the Navbar + Banner),
-        // we relocate the slider to sit right after the carousel section.
-        var slider = document.getElementById('studioSlider');
-        var root   = document.getElementById('root');
-        var moved  = false;
+      // ── Search Hero ────────────────────────────────────────────────────────
+      var input = document.getElementById('shInput');
+      var btn   = document.getElementById('shBtn');
 
-        function tryMove() {
-          if (moved) return;
-          // Look for the carousel container that HeroBanner renders
-          var carousel = root.querySelector('.carousel-container');
-          if (!carousel) return;
-          moved = true;
-          // Insert slider immediately after the carousel
-          carousel.parentNode.insertBefore(slider, carousel.nextSibling);
-        }
+      function goSearch(q) {
+        if (!q || !q.trim()) return;
+        window.location.href = BASE + '/movies?search=' + encodeURIComponent(q.trim());
+      }
+      function goGenre(g) {
+        window.location.href = BASE + '/movies' + (g ? '?genre=' + encodeURIComponent(g) : '');
+      }
 
-        // Poll until React has painted the banner
-        var poller = setInterval(function(){
-          tryMove();
-          if (moved) clearInterval(poller);
-        }, 100);
+      btn.addEventListener('click', function(){ goSearch(input.value); });
+      input.addEventListener('keydown', function(e){ if(e.key==='Enter') goSearch(input.value); });
 
-        // Stop polling after 10s regardless
-        setTimeout(function(){ clearInterval(poller); }, 10000);
-      })();
-    </script>
+      document.querySelectorAll('.sh-chip[data-search]').forEach(function(el){
+        el.addEventListener('click', function(){ goSearch(el.dataset.search); });
+      });
+      document.querySelectorAll('.sh-chip[data-genre]').forEach(function(el){
+        el.addEventListener('click', function(){ goGenre(el.dataset.genre); });
+      });
 
-    <!-- Search Hero script -->
-    <script>
-      (function(){
-        var BASE   = '/Admin-Log-Sync';
-        var input  = document.getElementById('shInput');
-        var btn    = document.getElementById('shBtn');
-        var hero   = document.getElementById('searchHero');
-        var root   = document.getElementById('root');
-
-        function goSearch(q) {
-          if (!q || !q.trim()) return;
-          window.location.href = BASE + '/movies?search=' + encodeURIComponent(q.trim());
-        }
-        function goGenre(g) {
-          window.location.href = BASE + '/movies' + (g ? '?genre=' + encodeURIComponent(g) : '');
-        }
-
-        btn.addEventListener('click', function(){ goSearch(input.value); });
-        input.addEventListener('keydown', function(e){ if(e.key==='Enter') goSearch(input.value); });
-
-        document.querySelectorAll('.sh-chip[data-search]').forEach(function(el){
-          el.addEventListener('click', function(){ goSearch(el.dataset.search); });
-        });
-        document.querySelectorAll('.sh-chip[data-genre]').forEach(function(el){
-          el.addEventListener('click', function(){ goGenre(el.dataset.genre); });
-        });
-
-        // ── Move search hero AFTER "Latest Releases" (2nd movie row) ─────────
-        // MovieRow renders with a wrapping div that contains an <h2> title.
-        // We find all such rows and insert after the 2nd one (Latest Releases).
-        var moved = false;
-        function tryMoveHero() {
-          if (moved) return;
-          // Each MovieRow renders as a <div> with a <h2> inside — grab them all
-          var rows = root.querySelectorAll('h2');
-          // Filter to rows that look like section titles (Trending, Latest, etc.)
-          var movieRows = [];
-          rows.forEach(function(h2){
-            // Only pick h2s that are direct section headers (not nav/footer)
-            var parent = h2.parentNode;
-            if (parent && parent.tagName !== 'NAV') movieRows.push(parent);
-          });
-          // Wait until at least 2 rows are rendered (Trending + Latest Releases)
-          if (movieRows.length < 2) return;
-          moved = true;
-          var afterLatest = movieRows[1]; // index 1 = Latest Releases
-          hero.style.display = 'block';
-          afterLatest.parentNode.insertBefore(hero, afterLatest.nextSibling);
-        }
-
-        var poller2 = setInterval(function(){
-          tryMoveHero();
-          if (moved) clearInterval(poller2);
-        }, 150);
-        setTimeout(function(){ clearInterval(poller2); if(!moved){ hero.style.display='block'; } }, 12000);
-      })();
+    })();
     </script>
 
     <script src="footer.js?v=2" defer></script>
