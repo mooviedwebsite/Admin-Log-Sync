@@ -1,3 +1,8 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+   HeroBanner — Home page only. MovieBanner (post pages) is unaffected.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* ── Container ─────────────────────────────────────────────────────────────── */
 .carousel-container {
     width: 100%;
     max-width: 1400px;
@@ -11,193 +16,184 @@
     overflow: hidden;
     cursor: grab;
     user-select: none;
+    /* Guarantee the wrapper never collapses to 0 height before images load */
+    min-height: 400px;
+    background: #000;
 }
 
-.carousel-wrapper:active {
-    cursor: grabbing;
-}
+.carousel-wrapper:active { cursor: grabbing; }
 
 .carousel-track {
     display: flex;
-    transition: transform 0.6s cubic-bezier(0.4, 0.0, 0.2, 1);
+    transition: transform 0.55s cubic-bezier(0.4, 0.0, 0.2, 1);
     will-change: transform;
 }
+.carousel-track.dragging { transition: none; }
 
-.carousel-track.dragging {
-    transition: none;
-}
-
-.carousel-track.instant {
-    transition: none;
-}
-
+/* ── Individual banner slide ─────────────────────────────────────────────── */
 .movie-banner {
     min-width: 100%;
     position: relative;
     overflow: hidden;
+    background: #000; /* fallback so banner is never pitch-black-with-nothing */
 }
 
-/* ── Layer 0: Poster background — <img> avoids the scroll-reload bug ─────── */
-/*   background-image re-fetches on visibility change; <img> stays cached.    */
-.banner-bg-img {
+/* ── LAYER 0 ─ Poster image ─────────────────────────────────────────────────
+   Key fix: we use <img> instead of background-image.
+   background-image bitmaps can be discarded by the browser when the element
+   scrolls out of the viewport, causing a re-fetch + re-decode on scroll back
+   (the "image reloads on scroll" bug). An <img> element's decoded bitmap is
+   held in the browser's image cache and is NEVER evicted on scroll.            */
+.hb-poster {
     position: absolute;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
+    top: 0; left: 0;
+    width: 100%; height: 100%;
     object-fit: cover;
     object-position: center top;
+    /* Start invisible — fade in when active. This prevents a flash of the
+       wrong slide's poster while the carousel track is mid-transition.        */
     opacity: 0;
-    transition: opacity 0.9s ease-in-out;
+    transition: opacity 0.55s ease-out;
     z-index: 0;
-    /* Cinematic poster tone */
-    filter: brightness(0.72) saturate(0.92);
-    /* Critical: prevent the browser from discarding the decoded bitmap */
+    filter: brightness(0.75) saturate(0.9);
     will-change: opacity;
-    /* Pointer events off — it's purely decorative */
     pointer-events: none;
-    /* Never let the browser treat this as a lazy-load candidate */
+    /* Never lazily discard this bitmap */
     content-visibility: visible;
 }
 
-.banner-bg-img.active {
+/* Image becomes visible as soon as the slide is active */
+.hb-poster.visible {
     opacity: 1;
 }
 
-/* ── Layer 2: Dark cinematic overlay ────────────────────────────────────── */
+/* When video is fully playing, push poster slightly back (still visible as
+   fallback if video pauses/stalls) but let the video dominate visually */
+.hb-poster.behind-video {
+    opacity: 0.15;
+    transition: opacity 1.2s ease-in-out;
+}
+
+/* ── LAYER 1 ─ YouTube video background ─────────────────────────────────────
+   Rules:
+   • Rendered only for the CURRENT slide that has a yt_link
+   • Always opacity:0 until hb-yt-ready is added (video confirmed loaded)
+   • No YouTube UI is ever visible (iframe covers it, controls=0)
+   • Pointer-events off — nothing is clickable on the video layer             */
+.hb-yt-wrap {
+    position: absolute;
+    inset: 0;
+    z-index: 1;
+    overflow: hidden;
+    pointer-events: none;
+}
+
+.hb-yt-iframe {
+    position: absolute;
+    /* Scale to fill the banner regardless of aspect ratio */
+    width:  max(100%, 177.78vh);
+    height: max(100%, 56.25vw);
+    top: 50%; left: 50%;
+    transform: translate(-50%, -50%);
+    border: none;
+    /* Invisible until ready — no loader, no black flash */
+    opacity: 0;
+    /* Slow fade-in so transition from poster to video is cinematic */
+    transition: opacity 1.6s ease-in-out;
+    filter: brightness(0.68) contrast(1.05) saturate(1.0);
+    pointer-events: none;
+}
+
+/* Video fades in only when hb-yt-ready is added (after load + good-net timer) */
+.hb-yt-iframe.hb-yt-ready {
+    opacity: 1;
+}
+
+/* ── LAYER 2 ─ Cinematic dark gradient overlay ──────────────────────────── */
 .hb-dark-overlay {
     position: absolute;
     inset: 0;
     z-index: 2;
     pointer-events: none;
-    /* Cinematic gradient sweep */
     background:
         linear-gradient(
             to right,
-            rgba(0, 0, 0, 0.98) 0%,
-            rgba(0, 0, 0, 0.82) 35%,
-            rgba(0, 0, 0, 0.12) 68%,
-            rgba(0, 0, 0, 0.42) 100%
+            rgba(0,0,0,0.96) 0%,
+            rgba(0,0,0,0.78) 32%,
+            rgba(0,0,0,0.10) 65%,
+            rgba(0,0,0,0.38) 100%
         ),
         linear-gradient(
             to bottom,
-            rgba(0, 0, 0, 0.80) 0%,
-            transparent 28%,
-            transparent 50%,
-            rgba(0, 0, 0, 0.99) 100%
+            rgba(0,0,0,0.72) 0%,
+            transparent 26%,
+            transparent 52%,
+            rgba(0,0,0,0.97) 100%
         );
-    /* Bokeh-style black bleed: top, left, bottom edges */
     box-shadow:
-        inset 0   200px 240px -50px rgba(0, 0, 0, 0.98),
-        inset 240px 0   240px -50px rgba(0, 0, 0, 0.95),
-        inset 0  -200px 240px -50px rgba(0, 0, 0, 0.98);
+        inset 0   180px 220px -50px rgba(0,0,0,0.95),
+        inset 220px 0   220px -50px rgba(0,0,0,0.92),
+        inset 0  -180px 220px -50px rgba(0,0,0,0.97);
 }
 
-/* ── Layer 3: Film-grain texture ─────────────────────────────────────────── */
+/* ── LAYER 3 ─ Film grain ────────────────────────────────────────────────── */
 .movie-banner::before {
     content: '';
     position: absolute;
     inset: 0;
     z-index: 3;
     pointer-events: none;
-    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='1'/%3E%3C/svg%3E");
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='1'/%3E%3C/svg%3E");
     background-size: 180px 180px;
-    opacity: 0.04;
+    opacity: 0.035;
     animation: hb-grain 0.4s steps(2) infinite;
 }
-
 @keyframes hb-grain {
-    0%   { transform: translate(0, 0); }
-    25%  { transform: translate(2px, -2px); }
-    50%  { transform: translate(-2px, 2px); }
-    75%  { transform: translate(2px, 2px); }
-    100% { transform: translate(-2px, -2px); }
+    0%   { transform: translate(0,0); }
+    25%  { transform: translate(2px,-2px); }
+    50%  { transform: translate(-2px,2px); }
+    75%  { transform: translate(2px,2px); }
+    100% { transform: translate(-2px,-2px); }
 }
 
-/* ── Layer 4: Banner content ─────────────────────────────────────────────── */
+/* ── LAYER 4 ─ Banner content ────────────────────────────────────────────── */
 .banner-content {
     position: relative;
     z-index: 4;
-    padding: 60px;
+    padding: 60px 60px 60px 60px;
+    padding-top: 80px;
     min-height: 600px;
     display: flex;
     flex-direction: column;
     justify-content: flex-end;
 }
 
-/* Animation states */
-.movie-banner .hb-title {
-    opacity: 0;
-    transform: translateY(30px) scale(0.95);
-    transition: all 0.7s cubic-bezier(0.16, 1, 0.3, 1);
-}
-.movie-banner.active .hb-title {
-    opacity: 1;
-    transform: translateY(0) scale(1);
-    transition-delay: 0.1s;
-}
-
-.movie-banner .hb-badges {
-    opacity: 0;
-    transform: translateY(20px);
-    transition: all 0.6s cubic-bezier(0.16, 1, 0.3, 1);
-}
-.movie-banner.active .hb-badges {
-    opacity: 1;
-    transform: translateY(0);
-    transition-delay: 0.2s;
-}
-
-.movie-banner .hb-categories {
-    opacity: 0;
-    transform: translateX(-20px);
-    transition: all 0.6s cubic-bezier(0.16, 1, 0.3, 1);
-}
-.movie-banner.active .hb-categories {
-    opacity: 1;
-    transform: translateX(0);
-    transition-delay: 0.3s;
-}
-
-.movie-banner .hb-description {
-    opacity: 0;
-    transform: translateY(20px);
-    transition: all 0.7s cubic-bezier(0.16, 1, 0.3, 1);
-}
-.movie-banner.active .hb-description {
-    opacity: 1;
-    transform: translateY(0);
-    transition-delay: 0.4s;
-}
-
-.movie-banner .hb-info-row {
-    opacity: 0;
-    transform: translateY(15px);
-    transition: all 0.6s cubic-bezier(0.16, 1, 0.3, 1);
-}
-.movie-banner.active .hb-info-row {
-    opacity: 1;
-    transform: translateY(0);
-    transition-delay: 0.5s;
-}
-
+/* ── Content animation states ────────────────────────────────────────────── */
+.movie-banner .hb-badges,
+.movie-banner .hb-movie-title,
+.movie-banner .hb-categories,
+.movie-banner .hb-description,
+.movie-banner .hb-info-row,
 .movie-banner .hb-action-btns {
     opacity: 0;
-    transform: translateY(20px);
-    transition: all 0.7s cubic-bezier(0.16, 1, 0.3, 1);
-}
-.movie-banner.active .hb-action-btns {
-    opacity: 1;
-    transform: translateY(0);
-    transition-delay: 0.6s;
+    transform: translateY(22px);
+    transition: opacity 0.65s cubic-bezier(0.16,1,0.3,1),
+                transform 0.65s cubic-bezier(0.16,1,0.3,1);
 }
 
-/* Badges */
+.movie-banner.active .hb-badges     { opacity:1; transform:none; transition-delay:0.10s; }
+.movie-banner.active .hb-movie-title{ opacity:1; transform:none; transition-delay:0.18s; }
+.movie-banner.active .hb-categories { opacity:1; transform:none; transition-delay:0.26s; }
+.movie-banner.active .hb-description{ opacity:1; transform:none; transition-delay:0.34s; }
+.movie-banner.active .hb-info-row   { opacity:1; transform:none; transition-delay:0.42s; }
+.movie-banner.active .hb-action-btns{ opacity:1; transform:none; transition-delay:0.50s; }
+
+/* ── Badges ──────────────────────────────────────────────────────────────── */
 .hb-badges {
     display: flex;
     align-items: center;
     gap: 10px;
-    margin-bottom: 18px;
+    margin-bottom: 16px;
     flex-wrap: wrap;
 }
 
@@ -205,475 +201,201 @@
     display: inline-flex;
     align-items: center;
     gap: 7px;
-    background: linear-gradient(to right, #ffffff 50%, #F5C518 0%);
+    background: linear-gradient(to right, #fff 50%, #F5C518 0%);
     padding: 4px 10px;
     border-radius: 15px;
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
-    border: 1px solid #ffffff;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+    border: 1px solid #fff;
     position: relative;
     overflow: hidden;
 }
-
 .hb-imdb-badge::before {
-    content: '';
-    position: absolute;
-    top: -50%;
-    left: -100%;
-    width: 100%;
-    height: 200%;
-    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.8), transparent);
-    transform: skewX(-20deg);
-    animation: hb-shimmer 3s infinite;
+    content:'';
+    position:absolute; top:-50%; left:-100%;
+    width:100%; height:200%;
+    background:linear-gradient(90deg,transparent,rgba(255,255,255,0.8),transparent);
+    transform:skewX(-20deg);
+    animation:hb-shimmer 3s infinite;
 }
-
-@keyframes hb-shimmer {
-    0% { left: -100%; }
-    50%, 100% { left: 200%; }
-}
-
-.hb-imdb-logo {
-    font-weight: 900;
-    font-size: 14px;
-    color: #000000;
-    letter-spacing: 0.5px;
-}
-
-.hb-imdb-rating {
-    font-weight: 800;
-    font-size: 14px;
-    color: #000000;
-    display: flex;
-    align-items: center;
-    gap: 3px;
-}
-
-.hb-star {
-    color: #000000;
-    font-size: 11px;
-}
+@keyframes hb-shimmer { 0%{left:-100%} 50%,100%{left:200%} }
+.hb-imdb-logo   { font-weight:900; font-size:14px; color:#000; letter-spacing:.5px; }
+.hb-imdb-rating { font-weight:800; font-size:14px; color:#000; display:flex; align-items:center; gap:3px; }
+.hb-star        { color:#000; font-size:11px; }
 
 .hb-quality-badge {
-    display: inline-flex;
-    align-items: center;
-    background: linear-gradient(135deg, rgba(0, 0, 0, 0.85), rgba(0, 0, 0, 0.65));
-    backdrop-filter: blur(10px);
-    border: 1.5px solid rgba(255, 255, 255, 0.25);
-    padding: 4px 10px;
-    border-radius: 4px;
-    font-weight: 700;
-    font-size: 11px;
-    color: #ffffff;
-    letter-spacing: 0.5px;
-    position: relative;
-    overflow: hidden;
+    display:inline-flex; align-items:center;
+    background:linear-gradient(135deg,rgba(0,0,0,.85),rgba(0,0,0,.65));
+    backdrop-filter:blur(10px);
+    border:1.5px solid rgba(255,255,255,.25);
+    padding:4px 10px; border-radius:4px;
+    font-weight:700; font-size:11px; color:#fff; letter-spacing:.5px;
+    position:relative; overflow:hidden;
 }
-
 .hb-quality-badge::before {
-    content: '';
-    position: absolute;
-    top: 0;
-    left: -100%;
-    width: 100%;
-    height: 100%;
-    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.15), transparent);
-    animation: hb-badge-shimmer 3s infinite;
-    animation-delay: 0.5s;
+    content:''; position:absolute; top:0; left:-100%;
+    width:100%; height:100%;
+    background:linear-gradient(90deg,transparent,rgba(255,255,255,.15),transparent);
+    animation:hb-badge-shimmer 3s infinite .5s;
 }
-
-@keyframes hb-badge-shimmer {
-    0% { left: -100%; }
-    50%, 100% { left: 200%; }
-}
-
-.hb-quality-badge-4k {
-    background: linear-gradient(135deg, #1a1a1a, #000000);
-    border: 1.5px solid rgba(255, 255, 255, 0.3);
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.5);
-}
-
-.hb-quality-text {
-    font-weight: 900;
-    font-size: 13px;
-    letter-spacing: 0.3px;
-}
-
+@keyframes hb-badge-shimmer { 0%{left:-100%} 50%,100%{left:200%} }
+.hb-quality-badge-4k { background:linear-gradient(135deg,#1a1a1a,#000); border-color:rgba(255,255,255,.3); box-shadow:0 2px 8px rgba(0,0,0,.5); }
+.hb-quality-text { font-weight:900; font-size:13px; letter-spacing:.3px; }
 .hb-year-badge {
-    display: inline-flex;
-    background: rgba(255, 255, 255, 0.12);
-    backdrop-filter: blur(10px);
-    border: 1px solid rgba(255, 255, 255, 0.25);
-    padding: 4px 8px;
-    border-radius: 4px;
-    font-weight: 700;
-    font-size: 10px;
-    color: #ffffff;
-    letter-spacing: 0.3px;
+    display:inline-flex; background:rgba(255,255,255,.12);
+    backdrop-filter:blur(10px); border:1px solid rgba(255,255,255,.25);
+    padding:4px 8px; border-radius:4px;
+    font-weight:700; font-size:10px; color:#fff; letter-spacing:.3px;
 }
 
-.hb-maturity-badge {
-    display: inline-flex;
-    align-items: center;
-    background: rgba(255, 255, 255, 0.15);
-    border: 1.5px solid rgba(255, 255, 255, 0.4);
-    padding: 2px 6px;
-    border-radius: 3px;
-    font-weight: 800;
-    font-size: 10px;
-    color: #ffffff;
-    letter-spacing: 0.5px;
-}
-
-/* Title */
+/* ── Title ───────────────────────────────────────────────────────────────── */
 .hb-movie-title {
     font-family: 'Bebas Neue', sans-serif;
     font-size: clamp(48px, 8vw, 110px);
     line-height: 0.95;
-    color: #ffffff;
-    margin-bottom: 16px;
+    color: #fff;
+    margin-bottom: 14px;
     text-transform: uppercase;
     letter-spacing: 4px;
-    text-shadow:
-        0 0 30px rgba(255, 255, 255, 0.3),
-        2px 2px 8px rgba(0, 0, 0, 0.8);
+    text-shadow: 0 0 30px rgba(255,255,255,.28), 2px 2px 8px rgba(0,0,0,.8);
 }
 
-/* Categories */
-.hb-categories {
-    display: flex;
-    gap: 8px;
-    margin-bottom: 20px;
-    flex-wrap: wrap;
-}
-
+/* ── Categories ──────────────────────────────────────────────────────────── */
+.hb-categories { display:flex; gap:8px; margin-bottom:18px; flex-wrap:wrap; }
 .hb-category {
-    background: rgba(255, 255, 255, 0.08);
-    backdrop-filter: blur(8px);
-    border: 1px solid rgba(255, 255, 255, 0.15);
-    padding: 5px 12px;
-    border-radius: 16px;
-    font-size: 12px;
-    font-weight: 500;
-    color: #999999;
+    background:rgba(255,255,255,.08); backdrop-filter:blur(8px);
+    border:1px solid rgba(255,255,255,.15);
+    padding:5px 12px; border-radius:16px;
+    font-size:12px; font-weight:500; color:#aaa;
 }
 
-/* Description */
+/* ── Description ─────────────────────────────────────────────────────────── */
 .hb-description {
-    font-size: 15px;
-    line-height: 1.6;
-    color: #999999;
-    max-width: 650px;
-    margin-bottom: 24px;
-    font-weight: 400;
+    font-size:15px; line-height:1.6; color:#999;
+    max-width:650px; margin-bottom:22px; font-weight:400;
 }
 
-/* Info row */
-.hb-info-row {
-    display: flex;
-    gap: 24px;
-    margin-bottom: 28px;
-    flex-wrap: wrap;
-    font-size: 14px;
-}
+/* ── Info row ────────────────────────────────────────────────────────────── */
+.hb-info-row { display:flex; gap:24px; margin-bottom:26px; flex-wrap:wrap; font-size:14px; }
+.hb-info-item { display:flex; gap:6px; }
+.hb-info-label { color:#999; }
+.hb-info-value { color:#fff; font-weight:600; }
 
-.hb-info-item {
-    display: flex;
-    gap: 6px;
-    color: #999999;
-}
-
-.hb-info-label {
-    color: #999999;
-}
-
-.hb-info-value {
-    color: #ffffff;
-    font-weight: 600;
-}
-
-/* Buttons */
-.hb-action-btns {
-    display: flex;
-    gap: 12px;
-    flex-wrap: wrap;
-}
-
+/* ── Action buttons ──────────────────────────────────────────────────────── */
+.hb-action-btns { display:flex; gap:12px; flex-wrap:wrap; }
 .hb-btn {
-    padding: 14px 32px;
-    border: none;
-    border-radius: 12px;
-    font-weight: 700;
-    font-size: 15px;
-    cursor: pointer;
-    transition: all 0.3s ease;
-    display: inline-flex;
-    align-items: center;
-    gap: 8px;
-    text-decoration: none;
-    font-family: 'Inter', sans-serif;
+    padding:13px 30px; border:none; border-radius:12px;
+    font-weight:700; font-size:15px; cursor:pointer;
+    transition:all .28s ease;
+    display:inline-flex; align-items:center; gap:8px;
+    text-decoration:none; font-family:'Inter',sans-serif;
 }
-
 .hb-btn-stream {
-    background: linear-gradient(135deg, #FFD700 0%, #FFA500 100%);
-    color: #000000;
-    box-shadow: 0 8px 24px rgba(255, 215, 0, 0.4);
+    background:linear-gradient(135deg,#FFD700,#FFA500);
+    color:#000; box-shadow:0 8px 24px rgba(255,215,0,.38);
 }
-
-.hb-btn-stream:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 12px 32px rgba(255, 215, 0, 0.6);
+.hb-btn-stream:hover { transform:translateY(-2px); box-shadow:0 12px 32px rgba(255,215,0,.58); }
+.hb-btn-info {
+    background:rgba(255,255,255,.10); backdrop-filter:blur(10px);
+    color:#fff; border:1px solid rgba(255,255,255,.2);
 }
+.hb-btn-info:hover { background:rgba(255,255,255,.16); transform:translateY(-2px); }
+/* Keep old class name working in case anything else references it */
+.hb-btn-download { background:rgba(255,255,255,.10); backdrop-filter:blur(10px); color:#fff; border:1px solid rgba(255,255,255,.2); }
+.hb-btn-download:hover { background:rgba(255,255,255,.16); transform:translateY(-2px); }
+.hb-btn-icon { width:18px; height:18px; flex-shrink:0; }
 
-.hb-btn-download {
-    background: rgba(255, 255, 255, 0.1);
-    backdrop-filter: blur(10px);
-    color: #ffffff;
-    border: 1px solid rgba(255, 255, 255, 0.2);
-}
-
-.hb-btn-download:hover {
-    background: rgba(255, 255, 255, 0.15);
-    transform: translateY(-2px);
-}
-
-.hb-btn-icon {
-    width: 18px;
-    height: 18px;
-    flex-shrink: 0;
-}
-
-/* Navigation arrows */
+/* ── Navigation arrows ───────────────────────────────────────────────────── */
 .hb-carousel-nav {
-    position: absolute;
-    top: 50%;
-    transform: translateY(-50%);
-    z-index: 10;
-    background: rgba(255, 255, 255, 0.1);
-    backdrop-filter: blur(10px);
-    border: 1px solid rgba(255, 255, 255, 0.2);
-    width: 56px;
-    height: 56px;
-    border-radius: 50%;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    cursor: pointer;
-    transition: all 0.3s ease;
-    opacity: 0;
-    pointer-events: none;
+    position:absolute; top:50%; transform:translateY(-50%);
+    z-index:10;
+    background:rgba(255,255,255,.10); backdrop-filter:blur(10px);
+    border:1px solid rgba(255,255,255,.2);
+    width:56px; height:56px; border-radius:50%;
+    display:flex; align-items:center; justify-content:center;
+    cursor:pointer; transition:all .28s ease;
+    opacity:0; pointer-events:none;
 }
+.carousel-wrapper:hover .hb-carousel-nav { opacity:1; pointer-events:all; }
+.hb-carousel-nav:hover { background:rgba(255,255,255,.2); transform:translateY(-50%) scale(1.08); }
+.hb-carousel-nav.prev { left:30px; }
+.hb-carousel-nav.next { right:30px; }
+.hb-carousel-nav svg  { width:24px; height:24px; fill:#fff; }
 
-.carousel-wrapper:hover .hb-carousel-nav {
-    opacity: 1;
-    pointer-events: all;
-}
-
-.hb-carousel-nav:hover {
-    background: rgba(255, 255, 255, 0.2);
-    transform: translateY(-50%) scale(1.1);
-}
-
-.hb-carousel-nav.prev {
-    left: 30px;
-}
-
-.hb-carousel-nav.next {
-    right: 30px;
-}
-
-.hb-carousel-nav svg {
-    width: 24px;
-    height: 24px;
-    fill: white;
-}
-
-/* Indicators */
+/* ── Progress indicators ─────────────────────────────────────────────────── */
 .hb-carousel-indicators {
-    position: absolute;
-    bottom: 30px;
-    left: 50%;
-    transform: translateX(-50%);
-    display: flex;
-    gap: 6px;
-    z-index: 10;
+    position:absolute; bottom:28px; left:50%; transform:translateX(-50%);
+    display:flex; gap:6px; z-index:10;
 }
-
 .hb-indicator {
-    height: 3px;
-    width: 50px;
-    border-radius: 2px;
-    background: rgba(255, 255, 255, 0.25);
-    cursor: pointer;
-    transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
-    position: relative;
-    overflow: hidden;
-    border: none;
-    padding: 0;
+    height:3px; width:50px; border-radius:2px;
+    background:rgba(255,255,255,.22);
+    cursor:pointer; transition:all .38s cubic-bezier(.4,0,.2,1);
+    position:relative; overflow:hidden;
+    border:none; padding:0;
 }
-
 .hb-indicator::before {
-    content: '';
-    position: absolute;
-    top: 0;
-    left: 0;
-    height: 100%;
-    width: 0%;
-    background: linear-gradient(90deg, #FFD700, #FFA500);
-    transition: width 0.4s cubic-bezier(0.4, 0, 0.2, 1);
-    border-radius: 2px;
+    content:''; position:absolute; top:0; left:0;
+    height:100%; width:0%;
+    background:linear-gradient(90deg,#FFD700,#FFA500);
+    transition:width .38s cubic-bezier(.4,0,.2,1);
+    border-radius:2px;
 }
+.hb-indicator.active { background:rgba(255,255,255,.32); }
+.hb-indicator.active::before { width:100%; box-shadow:0 0 10px rgba(255,215,0,.55); }
+.hb-indicator:hover { background:rgba(255,255,255,.38); transform:scaleY(1.4); }
+.hb-indicator.active:hover { transform:scaleY(1.2); }
 
-.hb-indicator.active {
-    background: rgba(255, 255, 255, 0.35);
-}
-
-.hb-indicator.active::before {
-    width: 100%;
-    box-shadow: 0 0 12px rgba(255, 215, 0, 0.6);
-}
-
-.hb-indicator:hover {
-    background: rgba(255, 255, 255, 0.4);
-    transform: scaleY(1.4);
-}
-
-.hb-indicator.active:hover {
-    transform: scaleY(1.2);
-}
-
-/* Mobile responsive — tablet */
+/* ══ TABLET (≤ 768px) ═══════════════════════════════════════════════════════ */
 @media (max-width: 768px) {
-    .banner-content {
-        padding: 24px 20px 70px 20px;
-        min-height: 520px;
-    }
+    .carousel-wrapper { min-height: 300px; }
+    .banner-content   { padding:24px 20px 70px; min-height:520px; }
 
-    .hb-movie-title {
-        font-size: clamp(34px, 9vw, 58px);
-        letter-spacing: 2px;
-        margin-bottom: 10px;
-    }
+    .hb-movie-title   { font-size:clamp(34px,9vw,58px); letter-spacing:2px; margin-bottom:10px; }
+    .hb-carousel-nav  { display:none; } /* swipe is enough on touch */
 
-    /* Hide nav arrows on mobile — swipe is enough */
-    .hb-carousel-nav {
-        display: none;
-    }
+    .hb-badges        { gap:6px; margin-bottom:10px; }
+    .hb-imdb-badge    { padding:3px 8px; }
+    .hb-imdb-logo, .hb-imdb-rating { font-size:11px; }
+    .hb-star          { font-size:10px; }
+    .hb-quality-badge, .hb-year-badge { padding:3px 7px; font-size:9px; }
+    .hb-quality-text  { font-size:10px; }
 
-    .hb-badges {
-        gap: 6px;
-        margin-bottom: 12px;
-    }
-
-    .hb-imdb-badge {
-        padding: 3px 8px;
-    }
-    .hb-imdb-logo { font-size: 11px; }
-    .hb-imdb-rating { font-size: 11px; }
-    .hb-star { font-size: 10px; }
-
-    .hb-quality-badge,
-    .hb-year-badge,
-    .hb-maturity-badge {
-        padding: 3px 7px;
-        font-size: 9px;
-    }
-    .hb-quality-text { font-size: 10px; }
-
-    .hb-categories {
-        margin-bottom: 10px;
-        gap: 6px;
-    }
-    .hb-category {
-        font-size: 10px;
-        padding: 4px 9px;
-    }
+    .hb-categories    { margin-bottom:10px; gap:6px; }
+    .hb-category      { font-size:10px; padding:4px 9px; }
 
     .hb-description {
-        font-size: 12px;
-        line-height: 1.55;
-        margin-bottom: 14px;
-        max-width: 100%;
-        display: -webkit-box;
-        -webkit-line-clamp: 3;
-        -webkit-box-orient: vertical;
-        overflow: hidden;
+        font-size:12px; line-height:1.55; margin-bottom:12px; max-width:100%;
+        display:-webkit-box; -webkit-line-clamp:3; -webkit-box-orient:vertical; overflow:hidden;
     }
 
-    .hb-info-row {
-        gap: 12px;
-        font-size: 11px;
-        margin-bottom: 16px;
-        flex-wrap: wrap;
-    }
+    .hb-info-row      { gap:12px; font-size:11px; margin-bottom:14px; }
+    .hb-action-btns   { flex-direction:row; gap:10px; }
+    .hb-btn           { flex:1; justify-content:center; padding:11px 14px; font-size:13px; border-radius:10px; gap:6px; }
+    .hb-btn-icon      { width:15px; height:15px; }
 
-    .hb-action-btns {
-        flex-direction: row;
-        gap: 10px;
-    }
-
-    .hb-btn {
-        flex: 1;
-        justify-content: center;
-        padding: 11px 14px;
-        font-size: 13px;
-        border-radius: 10px;
-        gap: 6px;
-    }
-    .hb-btn-icon { width: 15px; height: 15px; }
-
-    .hb-carousel-indicators {
-        bottom: 16px;
-        gap: 5px;
-    }
-    .hb-indicator {
-        width: 32px;
-        height: 2.5px;
-    }
+    .hb-carousel-indicators { bottom:14px; gap:5px; }
+    .hb-indicator     { width:32px; height:2.5px; }
 }
 
-/* Mobile responsive — phone */
+/* ══ PHONE (≤ 480px) ════════════════════════════════════════════════════════ */
 @media (max-width: 480px) {
-    .banner-content {
-        padding: 20px 16px 64px 16px;
-        min-height: 480px;
-    }
-
-    .hb-movie-title {
-        font-size: clamp(28px, 10vw, 44px);
-        letter-spacing: 1.5px;
-    }
-
-    .hb-description {
-        -webkit-line-clamp: 2;
-        font-size: 11.5px;
-    }
-
-    .hb-action-btns {
-        flex-direction: column;
-        gap: 8px;
-    }
-
-    .hb-btn {
-        width: 100%;
-        padding: 12px 16px;
-        font-size: 13px;
-    }
-
-    .hb-info-row {
-        display: none;
-    }
-
-    .hb-carousel-indicators {
-        bottom: 14px;
-        gap: 4px;
-    }
-    .hb-indicator { width: 26px; }
+    .banner-content   { padding:20px 16px 64px; min-height:480px; }
+    .hb-movie-title   { font-size:clamp(28px,10vw,44px); letter-spacing:1.5px; }
+    .hb-description   { -webkit-line-clamp:2; font-size:11.5px; }
+    .hb-action-btns   { flex-direction:column; gap:8px; }
+    .hb-btn           { width:100%; padding:12px 16px; font-size:13px; }
+    .hb-info-row      { display:none; }
+    .hb-carousel-indicators { bottom:12px; gap:4px; }
+    .hb-indicator     { width:26px; }
 }
 
+/* ══ Reduced motion ═════════════════════════════════════════════════════════ */
 @media (prefers-reduced-motion: reduce) {
     .carousel-track,
-    .banner-bg-img,
-    .movie-banner .hb-title,
+    .hb-poster,
+    .hb-yt-iframe,
     .movie-banner .hb-badges,
+    .movie-banner .hb-movie-title,
     .movie-banner .hb-categories,
     .movie-banner .hb-description,
     .movie-banner .hb-info-row,
