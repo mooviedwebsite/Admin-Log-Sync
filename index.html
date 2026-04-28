@@ -743,26 +743,21 @@
             sliderDone = true;
           }
         }
-        // Search → after the 2nd MovieRow (Latest Releases)
+        // Search → after the MovieRow whose h2 text is "Latest Releases"
+        // MovieRow renders: <div class="mb-10"><h2>Title</h2>...</div>
         if (!searchDone) {
           var allH2 = root.querySelectorAll('h2');
-          var rows = [];
+          var targetRow = null;
           allH2.forEach(function(h2){
-            // Walk up to find the MovieRow wrapper (has padding/margin classes)
-            var p = h2.parentNode;
-            while(p && p !== root) {
-              if (p.parentNode === root || (p.parentNode && p.parentNode.parentNode === root)) { break; }
-              p = p.parentNode;
+            if (h2.textContent.trim() === 'Latest Releases') {
+              // The MovieRow wrapper is the direct parent of h2
+              targetRow = h2.parentNode;
             }
-            if (p && p !== root && rows.indexOf(p) === -1) rows.push(p);
           });
-          if (rows.length >= 2) {
-            var target = rows[1];
-            if (target && target.parentNode) {
-              target.parentNode.insertBefore(searchEl, target.nextSibling);
-              bindSearch(searchEl);
-              searchDone = true;
-            }
+          if (targetRow && targetRow.parentNode) {
+            targetRow.parentNode.insertBefore(searchEl, targetRow.nextSibling);
+            bindSearch(searchEl);
+            searchDone = true;
           }
         }
         return sliderDone && searchDone;
