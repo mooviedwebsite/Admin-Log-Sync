@@ -644,155 +644,137 @@
          Sits right after #root so it naturally appears below the banner.
          React's MovieRows follow inside #root after these sections.
          ══════════════════════════════════════════════════════════════════════ -->
-    <div id="static-sections">
-
-      <!-- Studio Logo Slider -->
-      <div class="studio-slider-wrap" id="studioSlider">
-        <div class="studio-track" id="studioTrack">
-          <div class="studio-pill"><div class="studio-logo-box"><img src="https://upload.wikimedia.org/wikipedia/commons/5/5e/Paramount_Pictures_logo.svg" alt="Paramount" loading="lazy"></div>PARAMOUNT</div>
-          <div class="studio-pill"><div class="studio-logo-box"><img src="https://upload.wikimedia.org/wikipedia/commons/3/3e/Disney%2B_logo.svg" alt="Disney" loading="lazy"></div>DISNEY</div>
-          <div class="studio-pill"><div class="studio-logo-box"><img src="https://upload.wikimedia.org/wikipedia/commons/4/4d/DreamWorks_Animation_logo.svg" alt="DreamWorks" loading="lazy"></div>DREAMWORKS</div>
-          <div class="studio-pill"><div class="studio-logo-box"><img src="https://upload.wikimedia.org/wikipedia/commons/d/de/HBO_logo.svg" alt="HBO" loading="lazy"></div>HBO</div>
-          <div class="studio-pill"><div class="studio-logo-box"><img src="https://upload.wikimedia.org/wikipedia/commons/7/7a/Pixar_logo.svg" alt="Pixar" loading="lazy"></div>PIXAR</div>
-          <div class="studio-pill"><div class="studio-logo-box"><img src="https://upload.wikimedia.org/wikipedia/commons/0/08/Netflix_2015_logo.svg" alt="Netflix" loading="lazy"></div>NETFLIX</div>
-          <div class="studio-pill"><div class="studio-logo-box"><img src="https://upload.wikimedia.org/wikipedia/commons/7/7e/Universal_Pictures_logo.svg" alt="Universal" loading="lazy"></div>UNIVERSAL</div>
-          <div class="studio-pill"><div class="studio-logo-box"><img src="https://upload.wikimedia.org/wikipedia/commons/0/04/MarvelLogo.svg" alt="Marvel" loading="lazy"></div>MARVEL</div>
-          <!-- duplicate for seamless loop -->
-          <div class="studio-pill"><div class="studio-logo-box"><img src="https://upload.wikimedia.org/wikipedia/commons/5/5e/Paramount_Pictures_logo.svg" alt="" loading="lazy"></div>PARAMOUNT</div>
-          <div class="studio-pill"><div class="studio-logo-box"><img src="https://upload.wikimedia.org/wikipedia/commons/3/3e/Disney%2B_logo.svg" alt="" loading="lazy"></div>DISNEY</div>
-          <div class="studio-pill"><div class="studio-logo-box"><img src="https://upload.wikimedia.org/wikipedia/commons/4/4d/DreamWorks_Animation_logo.svg" alt="" loading="lazy"></div>DREAMWORKS</div>
-          <div class="studio-pill"><div class="studio-logo-box"><img src="https://upload.wikimedia.org/wikipedia/commons/d/de/HBO_logo.svg" alt="" loading="lazy"></div>HBO</div>
-          <div class="studio-pill"><div class="studio-logo-box"><img src="https://upload.wikimedia.org/wikipedia/commons/7/7a/Pixar_logo.svg" alt="" loading="lazy"></div>PIXAR</div>
-          <div class="studio-pill"><div class="studio-logo-box"><img src="https://upload.wikimedia.org/wikipedia/commons/0/08/Netflix_2015_logo.svg" alt="" loading="lazy"></div>NETFLIX</div>
-          <div class="studio-pill"><div class="studio-logo-box"><img src="https://upload.wikimedia.org/wikipedia/commons/7/7e/Universal_Pictures_logo.svg" alt="" loading="lazy"></div>UNIVERSAL</div>
-          <div class="studio-pill"><div class="studio-logo-box"><img src="https://upload.wikimedia.org/wikipedia/commons/0/04/MarvelLogo.svg" alt="" loading="lazy"></div>MARVEL</div>
-        </div>
-      </div>
-
-      <!-- Search Hero -->
-      <div class="sh-wrap">
-        <div class="sh-hero">
-          <div class="sh-inner">
-            <img class="sh-bg" src="https://res.cloudinary.com/digorezin/image/upload/v1745851537/Netflix-Background_bgtauh.jpg" alt="" loading="lazy">
-            <div class="sh-overlay"></div>
-            <div class="sh-content">
-              <h1 class="sh-title">Find Your Next Movie</h1>
-              <p class="sh-sub">Search from thousands of movies &amp; shows</p>
-              <div class="sh-row">
-                <div class="sh-input-wrap">
-                  <svg width="20" height="20" fill="none" stroke="rgba(255,255,255,0.5)" stroke-width="2" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-                  <input class="sh-input" id="shInput" type="text" placeholder="Search movies, shows..." autocomplete="off">
-                </div>
-                <button class="sh-btn" id="shBtn">
-                  <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7"/></svg>
-                  Search
-                </button>
-              </div>
-              <div class="sh-chips">
-                <span class="sh-chip" data-genre="">All</span>
-                <span class="sh-chip" data-genre="Movies">Movies</span>
-                <span class="sh-chip" data-genre="TV Shows">TV Shows</span>
-                <span class="sh-chip" data-genre="Anime">Anime</span>
-              </div>
-              <div class="sh-popular">
-                <span class="sh-chip" data-search="Avengers">Avengers</span>
-                <span class="sh-chip" data-search="Batman">Batman</span>
-                <span class="sh-chip" data-search="Interstellar">Interstellar</span>
-                <span class="sh-chip" data-search="Joker">Joker</span>
-                <span class="sh-chip" data-search="Inception">Inception</span>
-              </div>
-              <p class="sh-hint">10,000+ titles available</p>
-            </div>
-          </div>
-        </div>
-      </div>
-
-    </div><!-- /#static-sections -->
 
     <script>
-    // ══════════════════════════════════════════════════════════════════════════
-    // STATIC SECTIONS CONTROLLER
-    // No DOM moving. No polling for React elements.
-    // Just: show on home page, hide on all other pages.
-    // ══════════════════════════════════════════════════════════════════════════
     (function(){
       var BASE = '/Admin-Log-Sync';
 
-      // ── Show/hide based on current path ──────────────────────────────────
-      function isHome() {
-        var p = location.pathname.replace(/\/$/, '') || '/';
-        // Home = /Admin-Log-Sync or /Admin-Log-Sync/ or just /
-        return p === BASE || p === '' || p === '/';
+      function makeSlider() {
+        var logos = [
+          ['https://upload.wikimedia.org/wikipedia/commons/5/5e/Paramount_Pictures_logo.svg','PARAMOUNT'],
+          ['https://upload.wikimedia.org/wikipedia/commons/3/3e/Disney%2B_logo.svg','DISNEY'],
+          ['https://upload.wikimedia.org/wikipedia/commons/4/4d/DreamWorks_Animation_logo.svg','DREAMWORKS'],
+          ['https://upload.wikimedia.org/wikipedia/commons/d/de/HBO_logo.svg','HBO'],
+          ['https://upload.wikimedia.org/wikipedia/commons/7/7a/Pixar_logo.svg','PIXAR'],
+          ['https://upload.wikimedia.org/wikipedia/commons/0/08/Netflix_2015_logo.svg','NETFLIX'],
+          ['https://upload.wikimedia.org/wikipedia/commons/7/7e/Universal_Pictures_logo.svg','UNIVERSAL'],
+          ['https://upload.wikimedia.org/wikipedia/commons/0/04/MarvelLogo.svg','MARVEL']
+        ];
+        var pills = logos.concat(logos).map(function(l){
+          return '<div class="studio-pill"><div class="studio-logo-box"><img src="'+l[0]+'" alt="'+l[1]+'" loading="lazy"></div>'+l[1]+'</div>';
+        }).join('');
+        var wrap = document.createElement('div');
+        wrap.id = 'studioSlider';
+        wrap.className = 'studio-slider-wrap';
+        wrap.innerHTML = '<div class="studio-track" id="studioTrack">'+pills+'</div>';
+        return wrap;
       }
 
-      function syncVisibility() {
-        if (isHome()) {
-          document.body.classList.remove('not-home');
-        } else {
-          document.body.classList.add('not-home');
-        }
+      function makeSearchHero() {
+        var wrap = document.createElement('div');
+        wrap.id = 'searchHeroWrap';
+        wrap.className = 'sh-wrap';
+        wrap.innerHTML = '<div class="sh-hero"><div class="sh-inner">'
+          + '<img class="sh-bg" src="https://res.cloudinary.com/digorezin/image/upload/v1745851537/Netflix-Background_bgtauh.jpg" alt="" loading="lazy">'
+          + '<div class="sh-overlay"></div>'
+          + '<div class="sh-content">'
+          + '<h1 class="sh-title">Find Your Next Movie</h1>'
+          + '<p class="sh-sub">Search from thousands of movies &amp; shows</p>'
+          + '<div class="sh-row">'
+          + '<div class="sh-input-wrap">'
+          + '<svg width="20" height="20" fill="none" stroke="rgba(255,255,255,0.5)" stroke-width="2" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>'
+          + '<input class="sh-input" id="shInput" type="text" placeholder="Search movies, shows..." autocomplete="off">'
+          + '</div>'
+          + '<button class="sh-btn" id="shBtn"><svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7"/></svg>Search</button>'
+          + '</div>'
+          + '<div class="sh-chips">'
+          + '<span class="sh-chip" data-genre="">All</span>'
+          + '<span class="sh-chip" data-genre="Movies">Movies</span>'
+          + '<span class="sh-chip" data-genre="TV Shows">TV Shows</span>'
+          + '<span class="sh-chip" data-genre="Anime">Anime</span>'
+          + '</div>'
+          + '<div class="sh-popular">'
+          + '<span class="sh-chip" data-search="Avengers">Avengers</span>'
+          + '<span class="sh-chip" data-search="Batman">Batman</span>'
+          + '<span class="sh-chip" data-search="Interstellar">Interstellar</span>'
+          + '<span class="sh-chip" data-search="Joker">Joker</span>'
+          + '<span class="sh-chip" data-search="Inception">Inception</span>'
+          + '</div>'
+          + '<p class="sh-hint">10,000+ titles available</p>'
+          + '</div></div></div>';
+        return wrap;
       }
 
-      // Run immediately and on every navigation
-      syncVisibility();
-
-      // Hook React Router navigation (pushState/popstate)
-      var _ps = history.pushState.bind(history);
-      history.pushState = function(s, t, u) {
-        var r = _ps(s, t, u);
-        syncVisibility();
-        return r;
-      };
-      window.addEventListener('popstate', syncVisibility);
-
-      // ── Studio Slider interaction ─────────────────────────────────────────
-      var pills = document.querySelectorAll('.studio-pill');
-      var track = document.getElementById('studioTrack');
-      var wrap  = document.getElementById('studioSlider');
-      pills.forEach(function(pill){
-        function on(){
-          track.style.animationPlayState = 'paused';
-          wrap.dataset.active = '1';
-          pills.forEach(function(p){ p.classList.remove('active'); });
-          pill.classList.add('active');
-        }
-        function off(){
-          track.style.animationPlayState = 'running';
-          delete wrap.dataset.active;
-          pills.forEach(function(p){ p.classList.remove('active'); });
-        }
-        pill.addEventListener('mouseenter', on);
-        pill.addEventListener('mouseleave', off);
-        pill.addEventListener('click', function(){
-          pill.classList.contains('active') ? off() : on();
+      function bindSlider(el) {
+        var pills = el.querySelectorAll('.studio-pill');
+        var track = el.querySelector('.studio-track');
+        pills.forEach(function(pill){
+          function on(){ track.style.animationPlayState='paused'; el.dataset.active='1'; pills.forEach(function(p){p.classList.remove('active');}); pill.classList.add('active'); }
+          function off(){ track.style.animationPlayState='running'; delete el.dataset.active; pills.forEach(function(p){p.classList.remove('active');}); }
+          pill.addEventListener('mouseenter',on);
+          pill.addEventListener('mouseleave',off);
+          pill.addEventListener('click',function(){ pill.classList.contains('active')?off():on(); });
         });
-      });
-
-      // ── Search Hero ────────────────────────────────────────────────────────
-      var input = document.getElementById('shInput');
-      var btn   = document.getElementById('shBtn');
-
-      function goSearch(q) {
-        if (!q || !q.trim()) return;
-        window.location.href = BASE + '/movies?search=' + encodeURIComponent(q.trim());
-      }
-      function goGenre(g) {
-        window.location.href = BASE + '/movies' + (g ? '?genre=' + encodeURIComponent(g) : '');
       }
 
-      btn.addEventListener('click', function(){ goSearch(input.value); });
-      input.addEventListener('keydown', function(e){ if(e.key==='Enter') goSearch(input.value); });
+      function bindSearch(el) {
+        var input = el.querySelector('#shInput');
+        var btn   = el.querySelector('#shBtn');
+        function goSearch(q){ if(q&&q.trim()) window.location.href=BASE+'/movies?search='+encodeURIComponent(q.trim()); }
+        function goGenre(g){ window.location.href=BASE+'/movies'+(g?'?genre='+encodeURIComponent(g):''); }
+        btn.addEventListener('click',function(){ goSearch(input.value); });
+        input.addEventListener('keydown',function(e){ if(e.key==='Enter') goSearch(input.value); });
+        el.querySelectorAll('.sh-chip[data-search]').forEach(function(c){ c.addEventListener('click',function(){ goSearch(c.dataset.search); }); });
+        el.querySelectorAll('.sh-chip[data-genre]').forEach(function(c){ c.addEventListener('click',function(){ goGenre(c.dataset.genre); }); });
+      }
 
-      document.querySelectorAll('.sh-chip[data-search]').forEach(function(el){
-        el.addEventListener('click', function(){ goSearch(el.dataset.search); });
-      });
-      document.querySelectorAll('.sh-chip[data-genre]').forEach(function(el){
-        el.addEventListener('click', function(){ goGenre(el.dataset.genre); });
-      });
+      var sliderEl   = makeSlider();
+      var searchEl   = makeSearchHero();
+      var sliderDone = false;
+      var searchDone = false;
 
+      function tryInject(root) {
+        // Slider → right after .carousel-container (below hero banner)
+        if (!sliderDone) {
+          var carousel = root.querySelector('.carousel-container');
+          if (carousel && carousel.parentNode) {
+            carousel.parentNode.insertBefore(sliderEl, carousel.nextSibling);
+            bindSlider(sliderEl);
+            sliderDone = true;
+          }
+        }
+        // Search → after the 2nd MovieRow (Latest Releases)
+        if (!searchDone) {
+          var allH2 = root.querySelectorAll('h2');
+          var rows = [];
+          allH2.forEach(function(h2){
+            // Walk up to find the MovieRow wrapper (has padding/margin classes)
+            var p = h2.parentNode;
+            while(p && p !== root) {
+              if (p.parentNode === root || (p.parentNode && p.parentNode.parentNode === root)) { break; }
+              p = p.parentNode;
+            }
+            if (p && p !== root && rows.indexOf(p) === -1) rows.push(p);
+          });
+          if (rows.length >= 2) {
+            var target = rows[1];
+            if (target && target.parentNode) {
+              target.parentNode.insertBefore(searchEl, target.nextSibling);
+              bindSearch(searchEl);
+              searchDone = true;
+            }
+          }
+        }
+        return sliderDone && searchDone;
+      }
+
+      var root = document.getElementById('root');
+      var observer = new MutationObserver(function(){ if(tryInject(root)) observer.disconnect(); });
+      observer.observe(root, { childList:true, subtree:true });
+      tryInject(root);
+      setTimeout(function(){ observer.disconnect(); }, 15000);
     })();
     </script>
-
     <script src="footer.js?v=2" defer></script>
   </body>
 </html>
