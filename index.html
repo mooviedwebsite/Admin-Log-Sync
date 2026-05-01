@@ -1,818 +1,126 @@
-<!DOCTYPE html>
-<html lang="en">
-  <head>
-    <!-- moovied-inject -->
-    <!-- moovied-inject -->
-    <script>
-    // ── Moovied Clean URL system ──────────────────────────────────────────────
-    // Loads slug-map.json synchronously (XHR) before React mounts so the map
-    // is ALWAYS ready. New IDs are already slug-style (mov_oppenheimer_2023)
-    // so this just swaps underscores→dashes for the address bar display.
-    // Also supports legacy UUID ids via the byId/bySlug maps.
-    (function () {
-      try {
-        var BASE = '/Admin-Log-Sync';
-        var onGHPages = location.pathname.indexOf(BASE) === 0
-                     || location.hostname.indexOf('github.io') !== -1;
-        if (!onGHPages) return;
-
-        if (window.__MOOVIED_SLUGS__ &&
-            Object.keys(window.__MOOVIED_SLUGS__.byId || {}).length > 0) return;
-
-        window.__MOOVIED_SLUGS__ = { byId: {}, bySlug: {} };
-        var M = window.__MOOVIED_SLUGS__;
-
-        function applyEntry(id, slug) {
-          if (!id || !slug) return;
-          M.byId[id]     = slug;
-          M.bySlug[slug] = id;
-        }
-
-        // ── For new slug-style IDs (mov_xxx_yyyy / tv_xxx_yyyy) ──────────────
-        // Derive a display slug directly from the id — no map lookup needed.
-        // mov_oppenheimer_2023 → oppenheimer-2023
-        // tv_breaking_bad_2008 → breaking-bad-2008
-        function idToDisplaySlug(id) {
-          if (!id) return null;
-          var s = String(id);
-          if (/^(mov|tv)_/.test(s)) {
-            return s.replace(/^(mov|tv)_/, '').replace(/_/g, '-');
-          }
-          return null; // legacy UUID — use map
-        }
-
-        // ── Load slug-map.json synchronously before React boots ───────────────
-        // XHR sync = blocks parser for ~1 network RTT but guarantees map is
-        // populated before a single line of React runs. File is tiny (<1 KB).
-        try {
-          var CACHE_KEY = 'mvd_slugs_v3';
-          var CACHE_TTL = 5 * 60 * 1000;
-          var cached = null;
-          try {
-            var raw = sessionStorage.getItem(CACHE_KEY);
-            if (raw) {
-              var obj = JSON.parse(raw);
-              if (Date.now() - obj.t < CACHE_TTL) cached = obj.d;
-            }
-          } catch(e) {}
-
-          if (cached && cached.length) {
-            cached.forEach(function(e) { applyEntry(e.id, e.slug); });
-          } else {
-            var xhr = new XMLHttpRequest();
-            xhr.open('GET', BASE + '/slug-map.json', false); // false = synchronous
-            xhr.send();
-            if (xhr.status === 200) {
-              var entries = JSON.parse(xhr.responseText);
-              entries.forEach(function(e) { applyEntry(e.id, e.slug); });
-              try {
-                sessionStorage.setItem(CACHE_KEY, JSON.stringify({ t: Date.now(), d: entries }));
-              } catch(e) {}
-            }
-          }
-        } catch(ex) {}
-
-        // ── URL helpers ───────────────────────────────────────────────────────
-        var MOVIE_RE = /^(\/Admin-Log-Sync\/movie\/)([^/?#]+)(.*)?$/;
-
-        // Convert any internal ID (UUID or slug-style) → display slug for address bar
-        function toDisplay(p) {
-          var m = MOVIE_RE.exec(p);
-          if (!m) return null;
-          var seg = m[2];
-          // Already a display slug? (contains dashes, no mov_/tv_ prefix)
-          if (M.bySlug[seg]) return null; // already display form, no change needed
-          // New-style id: mov_xxx → xxx-yyy
-          var derived = idToDisplaySlug(seg);
-          if (derived && derived !== seg) return m[1] + derived + (m[3] || '');
-          // Legacy UUID → look up in map
-          var mapped = M.byId[seg];
-          if (mapped && mapped !== seg) return m[1] + mapped + (m[3] || '');
-          return null;
-        }
-
-        // Convert display slug → internal ID for React router
-        function toInternal(p) {
-          var m = MOVIE_RE.exec(p);
-          if (!m) return null;
-          var seg = m[2];
-          // If it's already an internal id (mov_/tv_ prefix or UUID), no change
-          if (/^(mov|tv)_/.test(seg)) return null;
-          if (/^[0-9a-f]{8}-/.test(seg)) return null;
-          // It's a display slug — convert back to internal id
-          // First check map (legacy UUIDs)
-          var mapped = M.bySlug[seg];
-          if (mapped) return m[1] + mapped + (m[3] || '');
-          // New-style: dashes→underscores with prefix guess
-          // We can't know prefix without the map, so check both
-          var tryMov = 'mov_' + seg.replace(/-/g, '_');
-          var tryTv  = 'tv_'  + seg.replace(/-/g, '_');
-          if (M.byId[tryMov] || M.bySlug[seg] !== undefined) return m[1] + tryMov + (m[3] || '');
-          if (M.byId[tryTv])  return m[1] + tryTv  + (m[3] || '');
-          // Last resort: search byId values
-          var found = null;
-          Object.keys(M.byId).forEach(function(id) {
-            if (M.byId[id] === seg) found = id;
-          });
-          return found ? m[1] + found + (m[3] || '') : null;
-        }
-
-        function cosmeticSwapToSlug() {
-          var display = toDisplay(location.pathname);
-          if (display) {
-            history.replaceState(history.state, '',
-              display + location.search + location.hash);
-          }
-        }
-
-        // ── Initial synchronous URL fix ───────────────────────────────────────
-        // If user lands on a display-slug URL, convert to internal before React mounts
-        (function() {
-          var internal = toInternal(location.pathname);
-          if (internal) history.replaceState(history.state, '',
-            internal + location.search + location.hash);
-        })();
-
-        // Cosmetic swap right now (if we landed on an internal id URL)
-        cosmeticSwapToSlug();
-
-        // ── Hook navigation for SPA page changes ─────────────────────────────
-        var _ps = history.pushState.bind(history);
-        var _rs = history.replaceState.bind(history);
-
-        history.pushState = function(s, t, u) {
-          // React pushes internal IDs → let it, then cosmetically swap
-          var r = _ps(s, t, u);
-          setTimeout(cosmeticSwapToSlug, 0);
-          return r;
-        };
-        history.replaceState = function(s, t, u) {
-          // Intercept only if this is a display-slug being set (e.g. user typed URL)
-          if (typeof u === 'string') {
-            var internal = toInternal(u);
-            if (internal) { u = internal; }
-          }
-          return _rs(s, t, u);
-        };
-        window.addEventListener('popstate', function() {
-          var internal = toInternal(location.pathname);
-          if (internal) _rs(history.state, '',
-            internal + location.search + location.hash);
-          setTimeout(cosmeticSwapToSlug, 0);
-        });
-
-        // Also refresh async in background to pick up any new movies
-        setTimeout(function() {
-          try {
-            fetch(BASE + '/slug-map.json?_=' + Date.now())
-              .then(function(r) { return r.ok ? r.json() : []; })
-              .then(function(entries) {
-                if (!entries || !entries.length) return;
-                entries.forEach(function(e) { applyEntry(e.id, e.slug); });
-                cosmeticSwapToSlug();
-                try {
-                  sessionStorage.setItem('mvd_slugs_v3',
-                    JSON.stringify({ t: Date.now(), d: entries }));
-                } catch(e) {}
-              });
-          } catch(ex) {}
-        }, 500);
-
-      } catch(e) { /* never break the page */ }
-    })();
-    </script>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1" />
-    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
-    <meta http-equiv="Pragma" content="no-cache" />
-    <meta http-equiv="Expires" content="0" />
-    <title>MOOVIED</title>
-    <link rel="icon" type="image/svg+xml" href="/Admin-Log-Sync/favicon.svg" />
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=Bebas+Neue&display=swap" rel="stylesheet">
-    <link rel="preconnect" href="https://script.google.com">
-    <link rel="dns-prefetch" href="https://script.google.com">
-    <link rel="preconnect" href="https://script.googleusercontent.com">
-    <link rel="dns-prefetch" href="https://script.googleusercontent.com">
-
-    <script>
-    (function () {
-      var GAS  = 'https://script.google.com/macros/s/AKfycbznJbClb88YmsGoHAKJjZgYAJLD5l-Efz1O7STFTbfeDxezPvGdyzWREL0KecUtuG7Z/exec';
-      var API  = window.location.origin + '/api';
-      var DEAD = 'https://a16cbf22-021e-4fbd-a6d1-5c8d3c7e4244-00-923mtzjoxrcz.worf.replit.dev/api';
-
-      /* 1. Set localStorage so ts() reads our server URL */
-      try {
-        localStorage.setItem('moovied_comments_api_url', API);
-        localStorage.setItem('moovied_api_server_url',   API);
-        localStorage.setItem('moovied_gas_url',           GAS);
-      } catch(e) {}
-
-      /* 2. Override Storage.prototype.getItem as extra safety */
-      try {
-        var _g = Storage.prototype.getItem;
-        Storage.prototype.getItem = function (k) {
-          if (k === 'moovied_comments_api_url') return API;
-          if (k === 'moovied_api_server_url')   return API;
-          if (k === 'moovied_gas_url')           return GAS;
-          return _g.call(this, k);
-        };
-      } catch(e) {}
-
-      /* 3. Nuclear fix: intercept window.fetch to rewrite the dead URL.
-            Even if ts() returns the old dead URL, this catch-all rewrites it.
-            The "GAS not connected" banner CANNOT appear. */
-      try {
-        var _f = window.fetch.bind(window);
-        window.fetch = function (u, o) {
-          if (typeof u === 'string' && u.startsWith(DEAD)) {
-            u = API + u.slice(DEAD.length);
-          }
-          return _f(u, o);
-        };
-      } catch(e) {}
-
-      /* 4. Cross-device user data sync.
-            On login: pull profile + bookmarks + watch history + likes from GAS,
-                      write them into localStorage so the app shows them on this device.
-            On change: push localStorage edits back to GAS (debounced).
-            Storage keys used by the app:
-              moovied_session         — current user
-              moovied_bookmarks       — array of movie ids
-              moovied_watch_history   — array of {movie_id, watched_at, progress}
-              moovied_movie_likes     — array of liked movie ids
-      */
-      try {
-        var SESSION_KEY = 'moovied_session';
-        var BOOKMARKS_KEY = 'moovied_bookmarks';
-        var HISTORY_KEY = 'moovied_watch_history';
-        var LIKES_KEY = 'moovied_movie_likes';
-        var SYNCED_FLAG = 'moovied_synced_for_user';
-        var REMOTE_WRITE_FLAG = '__moovied_remote_write__';
-
-        function log() {
-          try {
-            var args = ['%c[Moovied Sync]', 'color:#22d3ee;font-weight:bold'];
-            for (var i=0;i<arguments.length;i++) args.push(arguments[i]);
-            console.log.apply(console, args);
-          } catch(e) {}
-        }
-
-        function gasPost(payload) {
-          log('POST →', payload.action, payload);
-          return _f(GAS, {
-            method: 'POST',
-            mode: 'cors',
-            redirect: 'follow',
-            headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-            body: JSON.stringify(payload)
-          }).then(function(r){
-            return r.text().then(function(t){
-              try { var j = JSON.parse(t); log('POST ✓', payload.action, j); return j; }
-              catch(e) { log('POST ✗ non-JSON response for', payload.action, 'status', r.status, t.slice(0,200)); return null; }
-            });
-          }).catch(function(err){ log('POST ✗ fetch error for', payload.action, err && err.message || err); return null; });
-        }
-
-        function gasGet(action, params) {
-          var q = 'action=' + encodeURIComponent(action);
-          if (params) Object.keys(params).forEach(function(k){
-            q += '&' + encodeURIComponent(k) + '=' + encodeURIComponent(params[k]);
-          });
-          log('GET →', action, params);
-          return _f(GAS + '?' + q, { mode: 'cors', redirect: 'follow' }).then(function(r){
-            return r.text().then(function(t){
-              try { var j = JSON.parse(t); log('GET ✓', action, j); return j; }
-              catch(e) { log('GET ✗ non-JSON for', action, 'status', r.status, t.slice(0,200)); return null; }
-            });
-          }).catch(function(err){ log('GET ✗ fetch error for', action, err && err.message || err); return null; });
-        }
-
-        function getCurrentUser() {
-          try {
-            var raw = localStorage.getItem(SESSION_KEY);
-            if (!raw) return null;
-            return JSON.parse(raw);
-          } catch(e) { return null; }
-        }
-
-        function readJson(key) {
-          try { return JSON.parse(localStorage.getItem(key) || '[]'); } catch(e){ return []; }
-        }
-
-        function mergeIdLists(local, remote) {
-          var seen = {}, out = [];
-          (remote || []).concat(local || []).forEach(function(id){
-            var k = String(id);
-            if (!seen[k]) { seen[k] = 1; out.push(k); }
-          });
-          return out;
-        }
-
-        function mergeHistory(local, remote) {
-          var byId = {};
-          (remote || []).forEach(function(it){
-            if (!it) return;
-            var mid = it.movie_id || it.movieId || it.id;
-            if (!mid) return;
-            byId[mid] = { movie_id: String(mid), watched_at: it.watched_at || '', progress: Number(it.progress)||0 };
-          });
-          (local || []).forEach(function(it){
-            if (!it) return;
-            var mid = (typeof it === 'string') ? it : (it.movie_id || it.movieId || it.id);
-            if (!mid) return;
-            var when = (typeof it === 'string') ? new Date().toISOString() : (it.watched_at || it.watchedAt || '');
-            var prog = (typeof it === 'string') ? 0 : (Number(it.progress)||0);
-            var existing = byId[mid];
-            if (!existing || (when && when > (existing.watched_at || ''))) {
-              byId[mid] = { movie_id: String(mid), watched_at: when || new Date().toISOString(), progress: prog };
-            }
-          });
-          var arr = Object.keys(byId).map(function(k){ return byId[k]; });
-          arr.sort(function(a,b){ return new Date(b.watched_at) - new Date(a.watched_at); });
-          return arr;
-        }
-
-        function fireStorageEvent(key, oldValue, newValue) {
-          try {
-            var ev = new StorageEvent('storage', {
-              key: key, oldValue: oldValue, newValue: newValue,
-              storageArea: window.localStorage, url: window.location.href
-            });
-            window.dispatchEvent(ev);
-          } catch(e) {
-            try {
-              var fallback = new Event('storage');
-              fallback.key = key; fallback.oldValue = oldValue; fallback.newValue = newValue;
-              window.dispatchEvent(fallback);
-            } catch(e2){}
-          }
-        }
-
-        function safeWrite(key, value) {
-          var prev = localStorage.getItem(key);
-          if (prev === value) return false;
-          window[REMOTE_WRITE_FLAG] = true;
-          try { localStorage.setItem(key, value); }
-          finally { window[REMOTE_WRITE_FLAG] = false; }
-          fireStorageEvent(key, prev, value);
-          return true;
-        }
-
-        function pullUserData(userId, opts) {
-          if (!userId) return;
-          opts = opts || {};
-          gasGet('getUserData', { userId: userId }).then(function(res){
-            // If id lookup fails, retry with email (fixes old sessions where id was 'admin')
-            if (!res || !res.success) {
-              var u = getCurrentUser();
-              if (u && u.email && u.email !== String(userId)) {
-                log('id lookup failed — retrying by email:', u.email);
-                gasGet('getUserData', { userId: u.email }).then(function(res2){
-                  if (!res2 || !res2.success) { log('email lookup also failed'); return; }
-                  if (res2.profile && res2.profile.id) {
-                    u.id = res2.profile.id;
-                    safeWrite(SESSION_KEY, JSON.stringify(u));
-                    log('corrected stored user id →', u.id);
-                  }
-                  doApplyUserData(res2, res2.profile ? res2.profile.id : u.email);
-                });
-              }
-              return;
-            }
-            doApplyUserData(res, userId);
-          });
-        }
-
-        function doApplyUserData(res, userId) {
-          {
-            var localBm = readJson(BOOKMARKS_KEY);
-            var localHi = readJson(HISTORY_KEY);
-            var localLk = readJson(LIKES_KEY);
-            var mergedBm = mergeIdLists(localBm, res.bookmarks);
-            var mergedHi = mergeHistory(localHi, res.watchHistory);
-            var mergedLk = mergeIdLists(localLk, res.likes);
-
-            safeWrite(BOOKMARKS_KEY, JSON.stringify(mergedBm));
-            safeWrite(HISTORY_KEY,   JSON.stringify(mergedHi));
-            safeWrite(LIKES_KEY,     JSON.stringify(mergedLk));
-
-            // Merge profile fields into stored session
-            var u = getCurrentUser();
-            if (u && res.profile) {
-              var changedSession = false;
-              ['name','country','avatar_url','bio','phone','birthday','gender'].forEach(function(f){
-                if (res.profile[f] !== undefined && res.profile[f] !== '' && u[f] !== res.profile[f]) {
-                  u[f] = res.profile[f]; changedSession = true;
-                }
-              });
-              if (changedSession) safeWrite(SESSION_KEY, JSON.stringify(u));
-            }
-
-            var remoteBm = (res.bookmarks || []).map(String).sort().join(',');
-            var remoteHi = (res.watchHistory || []).map(function(h){return h && (h.movie_id||h.movieId||h.id);}).filter(Boolean).map(String).sort().join(',');
-            var localBmKey = mergedBm.slice().sort().join(',');
-            var localHiKey = mergedHi.map(function(h){return h.movie_id;}).sort().join(',');
-            if (localBmKey !== remoteBm) {
-              gasPost({ action: 'setBookmarks', userId: userId, bookmarks: mergedBm });
-            }
-            if (localHiKey !== remoteHi) {
-              gasPost({ action: 'setWatchHistory', userId: userId, watchHistory: mergedHi });
-            }
-            try { window.dispatchEvent(new Event('moovied-data-synced')); } catch(e){}
-          }
-        }
-
-        var pushTimers = {};
-        function debouncedPush(key, fn) {
-          if (pushTimers[key]) clearTimeout(pushTimers[key]);
-          pushTimers[key] = setTimeout(fn, 600);
-        }
-
-        function pushBookmarks() {
-          var u = getCurrentUser(); if (!u || !u.id) return;
-          var ids;
-          try { ids = JSON.parse(localStorage.getItem(BOOKMARKS_KEY) || '[]'); } catch(e){ ids = []; }
-          gasPost({ action: 'setBookmarks', userId: u.id, bookmarks: ids });
-        }
-
-        function pushHistory() {
-          var u = getCurrentUser(); if (!u || !u.id) return;
-          var items;
-          try { items = JSON.parse(localStorage.getItem(HISTORY_KEY) || '[]'); } catch(e){ items = []; }
-          var norm = items.map(function(it){
-            if (typeof it === 'string') return { movie_id: it, watched_at: new Date().toISOString(), progress: 0 };
-            return {
-              movie_id: it.movie_id || it.movieId || it.id,
-              watched_at: it.watched_at || it.watchedAt || new Date().toISOString(),
-              progress: Number(it.progress) || 0
-            };
-          }).filter(function(it){ return it.movie_id; });
-          gasPost({ action: 'setWatchHistory', userId: u.id, watchHistory: norm });
-        }
-
-        function pushProfile(prevUser, nextUser) {
-          if (!nextUser || !nextUser.id) return;
-          var fields = {};
-          var changed = false;
-          ['name','country','avatar_url','bio','phone','birthday','gender'].forEach(function(f){
-            if (nextUser[f] !== undefined && (!prevUser || prevUser[f] !== nextUser[f])) {
-              fields[f] = nextUser[f]; changed = true;
-            }
-          });
-          if (changed) gasPost({ action: 'updateUserProfile', userId: nextUser.id, fields: fields });
-        }
-
-        var _s = Storage.prototype.setItem;
-        Storage.prototype.setItem = function(k, v) {
-          var prev = null;
-          if (k === SESSION_KEY) prev = getCurrentUser();
-          _s.call(this, k, v);
-          if (window[REMOTE_WRITE_FLAG]) return;
-          if (this !== window.localStorage) return;
-          if (k === BOOKMARKS_KEY)      { log('detected bookmarks change'); debouncedPush('bm', pushBookmarks); }
-          else if (k === HISTORY_KEY)   { log('detected history change');   debouncedPush('hi', pushHistory); }
-          else if (k === SESSION_KEY) {
-            var nu = getCurrentUser();
-            if (nu && nu.id && (!prev || prev.id !== nu.id)) {
-              log('detected login/user change → pulling cloud data');
-              pullUserData(nu.id);
-            }
-            if (nu && prev && nu.id === prev.id) pushProfile(prev, nu);
-          }
-        };
-
-        function initialSync() {
-          var u = getCurrentUser();
-          if (u && u.id) {
-            log('initial sync for user', u.id, '(' + (u.email || '') + ')');
-            pullUserData(u.id);
-            var localBm = readJson(BOOKMARKS_KEY);
-            var localHi = readJson(HISTORY_KEY);
-            if (localBm.length > 0) debouncedPush('bm', pushBookmarks);
-            if (localHi.length > 0) debouncedPush('hi', pushHistory);
-          } else {
-            log('no logged-in user — skipping sync');
-          }
-        }
-
-        window.mooviedSyncNow = function() {
-          log('manual sync triggered');
-          initialSync();
-          return 'sync started — watch console for results';
-        };
-        if (document.readyState === 'loading') {
-          document.addEventListener('DOMContentLoaded', initialSync);
-        } else {
-          initialSync();
-        }
-
-        setInterval(function(){
-          if (document.visibilityState === 'visible') initialSync();
-        }, 30000);
-        document.addEventListener('visibilitychange', function(){
-          if (document.visibilityState === 'visible') initialSync();
-        });
-
-        window.addEventListener('storage', function(ev){
-          if (ev.key === SESSION_KEY) {
-            var u = getCurrentUser();
-            if (u && u.id) pullUserData(u.id);
-          }
-        });
-      } catch(e) {}
-    })();
-    </script>
-    <script type="module" crossorigin src="/Admin-Log-Sync/assets/index-Mvd2026N.js"></script>
-    <link rel="stylesheet" crossorigin href="/Admin-Log-Sync/assets/index-aJ7HeroO.css">
-    <style>
-      /* ── MOOVIED premium download cards ──────────────────────────────────── */
-      .mvd-dl-card{position:relative;overflow:hidden;background:rgba(255,255,255,0.035);border:1px solid rgba(255,255,255,0.08);border-radius:22px;padding:18px 20px;transition:border-color .5s,transform .3s;margin-bottom:14px;font-family:-apple-system,BlinkMacSystemFont,'SF Pro Display','Inter',sans-serif}
-      .mvd-dl-card:hover{transform:translateY(-2px)}
-      .mvd-dl-card.mvd-active{border-color:rgba(74,222,128,0.2)}
-      .mvd-dl-card.mvd-done{border-color:rgba(74,222,128,0.35)}
-      .mvd-dl-card::before{content:"";position:absolute;top:0;left:10%;right:10%;height:1px;background:linear-gradient(90deg,transparent,rgba(255,255,255,0.14),transparent);pointer-events:none}
-      .mvd-dl-amb{position:absolute;bottom:-50px;left:50%;transform:translateX(-50%);width:300px;height:90px;border-radius:50%;background:radial-gradient(ellipse,rgba(34,197,94,0.2) 0%,transparent 68%);pointer-events:none;opacity:0;transition:opacity .7s}
-      .mvd-dl-card.mvd-active .mvd-dl-amb,.mvd-dl-card.mvd-done .mvd-dl-amb{opacity:1}
-      .mvd-dl-row{display:flex;align-items:center;gap:14px;position:relative;z-index:1}
-      .mvd-dl-icon{width:44px;height:44px;border-radius:13px;flex-shrink:0;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.09);display:flex;align-items:center;justify-content:center;transition:background .4s,border-color .4s,color .4s;color:rgba(255,255,255,0.5)}
-      .mvd-dl-card.mvd-done .mvd-dl-icon{background:rgba(34,197,94,0.15);border-color:rgba(34,197,94,0.3);color:#4ade80}
-      .mvd-dl-info{flex:1;min-width:0}
-      .mvd-dl-title{font-size:13px;font-weight:500;color:rgba(255,255,255,0.85);letter-spacing:.1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-      .mvd-dl-meta{display:flex;align-items:center;gap:7px;margin-top:4px;flex-wrap:wrap}
-      .mvd-dl-badge{font-size:9.5px;font-weight:700;letter-spacing:.5px;padding:2px 7px;border-radius:5px;border:1px solid}
-      .mvd-dl-sep{color:rgba(255,255,255,0.18);font-size:9px}
-      .mvd-dl-mt{font-size:11px;color:rgba(255,255,255,0.3)}
-      .mvd-dl-spd{font-size:11px;color:rgba(255,255,255,0.4);min-width:72px;font-variant-numeric:tabular-nums}
-      .mvd-dl-track{margin-top:10px;height:4px;background:rgba(255,255,255,0.06);border-radius:99px;overflow:visible;position:relative}
-      .mvd-dl-fill{height:100%;width:0%;border-radius:99px;position:relative;background:linear-gradient(90deg,#15803d,#22c55e,#86efac,#22c55e,#15803d);background-size:300% 100%;transition:width .08s linear}
-      .mvd-dl-fill.mvd-shine{animation:mvdShine 1.4s linear infinite}
-      @keyframes mvdShine{0%{background-position:100% 0}100%{background-position:-100% 0}}
-      .mvd-dl-tip{position:absolute;right:-5px;top:50%;transform:translateY(-50%);width:10px;height:10px;border-radius:50%;background:#86efac;box-shadow:0 0 8px 3px rgba(134,239,172,0.7),0 0 20px 6px rgba(34,197,94,0.4);opacity:0;transition:opacity .3s}
-      .mvd-dl-fill.mvd-shine .mvd-dl-tip{opacity:1}
-      .mvd-dl-check{position:absolute;right:-8px;top:50%;width:16px;height:16px;border-radius:50%;background:#22c55e;display:flex;align-items:center;justify-content:center;opacity:0;transform:translateY(-50%) scale(0);transition:opacity .3s,transform .4s cubic-bezier(.34,1.56,.64,1)}
-      .mvd-dl-check svg{width:8px;height:8px}
-      .mvd-dl-fill.mvd-done-fill .mvd-dl-check{opacity:1;transform:translateY(-50%) scale(1)}
-      .mvd-dl-fill.mvd-done-fill{background:#22c55e;animation:none;box-shadow:0 0 12px rgba(34,197,94,0.5)}
-      .mvd-dl-right{display:flex;align-items:center;gap:10px;flex-shrink:0}
-      .mvd-dl-pct{font-size:11px;color:rgba(255,255,255,0.28);min-width:32px;text-align:right;font-variant-numeric:tabular-nums;transition:color .4s}
-      .mvd-dl-card.mvd-done .mvd-dl-pct{color:#4ade80}
-      .mvd-dl-btn{font-size:11px;font-weight:700;letter-spacing:.3px;padding:8px 16px;border-radius:10px;border:1px solid rgba(255,255,255,0.14);background:rgba(255,255,255,0.06);color:rgba(255,255,255,0.8);cursor:pointer;white-space:nowrap;transition:all .25s;font-family:inherit}
-      .mvd-dl-btn:hover:not(:disabled){background:rgba(255,255,255,0.1);border-color:rgba(255,255,255,0.2)}
-      .mvd-dl-btn.mvd-go{background:#fff;color:#0a0a0a;border-color:#fff}
-      .mvd-dl-btn.mvd-go:hover{background:#e5e5e5}
-      .mvd-dl-btn.mvd-running{background:#22c55e;color:#fff;border-color:#22c55e;box-shadow:0 0 18px rgba(34,197,94,0.45)}
-      .mvd-dl-btn.mvd-finished{background:rgba(34,197,94,0.15);color:#4ade80;border-color:rgba(34,197,94,0.35);cursor:default;box-shadow:none}
-      .mvd-dl-btn:disabled{cursor:default}
-      .mvd-dl-particles{position:absolute;inset:0;pointer-events:none;border-radius:22px;overflow:hidden}
-      .mvd-dl-p{position:absolute;width:4px;height:4px;border-radius:50%;opacity:0}
-      @keyframes mvdFly{0%{transform:translate(0,0) scale(1);opacity:1}100%{transform:translate(var(--tx),var(--ty)) scale(0);opacity:0}}
-      .mvd-dl-scan{position:absolute;left:0;right:0;height:2px;top:-2px;background:linear-gradient(90deg,transparent,rgba(74,222,128,0.6),transparent);pointer-events:none;opacity:0}
-      .mvd-dl-card.mvd-done .mvd-dl-scan{animation:mvdScan 1s ease-in forwards}
-      @keyframes mvdScan{0%{top:-2px;opacity:.7}100%{top:100%;opacity:0}}
-      @media(max-width:640px){
-        .mvd-dl-card{padding:14px 14px;border-radius:16px;margin-bottom:10px}
-        .mvd-dl-row{gap:10px}
-        .mvd-dl-icon{width:38px;height:38px;border-radius:11px}
-        .mvd-dl-title{font-size:12px}
-        .mvd-dl-badge{font-size:9px;padding:1.5px 6px}
-        .mvd-dl-mt,.mvd-dl-spd{font-size:10px}
-        .mvd-dl-spd{min-width:60px}
-        .mvd-dl-btn{padding:6px 12px;font-size:10px;border-radius:8px}
-        .mvd-dl-pct{font-size:10px;min-width:28px}
-      }
-
-      /* ── Static sections base ─────────────────────────────────────────────── */
-      #static-sections{background:#000;width:100%}
-      body.not-home #static-sections{display:none !important}
-
-      /* ── Studio Logo Slider ───────────────────────────────────────────────── */
-      .studio-slider-wrap{position:relative;overflow:hidden;width:100%;background:#000;padding:10px 0}
-      .studio-track{display:flex;gap:clamp(10px,2vw,22px);width:max-content;animation:studioScroll 30s linear infinite;padding:clamp(8px,2vw,16px)}
-      .studio-pill{display:flex;align-items:center;gap:clamp(6px,1.5vw,12px);padding:clamp(6px,1.5vw,10px) clamp(12px,2vw,18px);border-radius:999px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.08);backdrop-filter:blur(14px);color:#fff;font-size:clamp(10px,1.2vw,13px);font-weight:600;transition:all .35s ease;white-space:nowrap;cursor:pointer;font-family:'Inter',sans-serif;letter-spacing:.5px}
-      .studio-logo-box{width:clamp(22px,3vw,32px);height:clamp(22px,3vw,32px);border-radius:50%;background:rgba(255,255,255,0.08);display:flex;align-items:center;justify-content:center;overflow:hidden;position:relative;flex-shrink:0}
-      .studio-logo-box img{width:75%;height:75%;object-fit:contain;filter:brightness(0) invert(1)}
-      .studio-logo-box::after{content:"";position:absolute;top:0;left:-100%;width:60%;height:100%;background:linear-gradient(120deg,transparent,rgba(255,255,255,0.6),transparent);transform:skewX(-20deg)}
-      .studio-pill.active .studio-logo-box::after{animation:studioShine 1s ease}
-      .studio-slider-wrap[data-active] .studio-pill{opacity:0.25;transform:scale(0.95)}
-      .studio-pill.active{opacity:1 !important;transform:scale(1.08) !important;background:rgba(255,255,255,0.18);box-shadow:0 0 20px rgba(255,255,255,0.15),0 10px 25px rgba(255,255,255,0.08)}
-      .studio-slider-wrap::before,.studio-slider-wrap::after{content:"";position:absolute;top:0;width:clamp(30px,8vw,80px);height:100%;z-index:2;pointer-events:none}
-      .studio-slider-wrap::before{left:0;background:linear-gradient(to right,#000,transparent)}
-      .studio-slider-wrap::after{right:0;background:linear-gradient(to left,#000,transparent)}
-      @keyframes studioScroll{from{transform:translateX(0)}to{transform:translateX(-50%)}}
-      @keyframes studioShine{0%{left:-100%}100%{left:140%}}
-      @media(max-width:480px){.studio-track{animation-duration:40s}}
-      @media(min-width:768px){.studio-track{animation-duration:28s}}
-      @media(min-width:1200px){.studio-track{animation-duration:22s}}
-
-      /* ── Search Hero ──────────────────────────────────────────────────────── */
-      .sh-wrap{padding:20px 16px 8px}
-      @media(min-width:768px){.sh-wrap{padding:24px 24px 8px}}
-      @media(min-width:1024px){.sh-wrap{padding:28px 32px 10px}}
-      .sh-hero{position:relative;border-radius:20px;overflow:hidden;padding:1px;background:linear-gradient(120deg,rgba(255,255,255,0.25),rgba(255,255,255,0.05),rgba(255,255,255,0.25));height:clamp(280px,35vw,440px)}
-      @media(min-width:768px){.sh-hero{border-radius:28px}}
-      .sh-inner{position:relative;height:100%;border-radius:inherit;overflow:hidden;background:#000}
-      .sh-bg{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;filter:brightness(0.3)}
-      .sh-overlay{position:absolute;inset:0;background:linear-gradient(to bottom,rgba(0,0,0,0.55),#000)}
-      .sh-content{position:relative;z-index:10;height:100%;display:flex;flex-direction:column;justify-content:center;align-items:center;text-align:center;padding:0 16px}
-      .sh-title{color:#fff !important;font-weight:600;font-size:clamp(18px,3vw,36px);margin:0 0 8px;font-family:'Inter',sans-serif}
-      .sh-sub{color:rgba(255,255,255,0.55) !important;font-size:clamp(11px,1.5vw,15px);margin:0 0 20px;font-family:'Inter',sans-serif}
-      .sh-row{display:flex;flex-direction:column;gap:12px;width:100%;max-width:640px}
-      @media(min-width:640px){.sh-row{flex-direction:row}}
-      .sh-input-wrap{display:flex;align-items:center;gap:12px;padding:12px 16px;border-radius:999px;background:rgba(255,255,255,0.07);backdrop-filter:blur(18px);border:1px solid rgba(255,255,255,0.13);flex:1;transition:border-color .25s,box-shadow .25s}
-      .sh-input-wrap:focus-within{border-color:rgba(255,255,255,0.35);box-shadow:0 0 0 3px rgba(255,255,255,0.06)}
-      .sh-input{background:transparent !important;border:none !important;outline:none !important;color:#fff !important;font-size:clamp(13px,1.4vw,16px);width:100%;font-family:'Inter',sans-serif;box-shadow:none !important}
-      .sh-input::placeholder{color:rgba(255,255,255,0.4)}
-      .sh-btn{padding:12px 24px !important;border-radius:999px !important;background:#fff !important;color:#000 !important;font-weight:600;font-size:clamp(13px,1.4vw,16px);display:flex !important;align-items:center;justify-content:center;gap:8px;cursor:pointer;border:none !important;font-family:'Inter',sans-serif;transition:box-shadow .25s;white-space:nowrap}
-      .sh-btn:hover{box-shadow:0 0 22px rgba(255,255,255,0.25)}
-      .sh-chips,.sh-popular{display:flex;flex-wrap:wrap;justify-content:center;gap:8px;margin-top:14px}
-      .sh-chip{background:rgba(255,255,255,0.08) !important;border:1px solid rgba(255,255,255,0.1) !important;border-radius:999px !important;padding:4px 14px !important;color:rgba(255,255,255,0.8) !important;font-size:clamp(10px,1.2vw,13px);cursor:pointer;font-family:'Inter',sans-serif;transition:background .2s;display:inline-block}
-      .sh-chip:hover{background:rgba(255,255,255,0.18) !important}
-      .sh-popular .sh-chip{color:rgba(255,255,255,0.65) !important;padding:3px 12px !important;font-size:clamp(9px,1vw,12px)}
-      .sh-hint{color:rgba(255,255,255,0.3);font-size:clamp(9px,1vw,11px);margin-top:10px;font-family:'Inter',sans-serif}
-    </style>
-    <link rel="stylesheet" href="footer.css?v=2">
-  </head>
-  <body>
-
-    <!-- React mounts here: Navbar + HeroBanner + MovieRows + Footer -->
-    <div id="root"></div>
-
-    <!-- ══════════════════════════════════════════════════════════════════════
-         STATIC SECTIONS — always painted, zero race condition
-         Sits right after #root so it naturally appears below the banner.
-         React's MovieRows follow inside #root after these sections.
-         ══════════════════════════════════════════════════════════════════════ -->
-
-    <script>
-    (function(){
-      var BASE = '/Admin-Log-Sync';
-
-      function makeSlider() {
-        var logos = [
-          ['https://upload.wikimedia.org/wikipedia/commons/5/5e/Paramount_Pictures_logo.svg','PARAMOUNT'],
-          ['https://upload.wikimedia.org/wikipedia/commons/3/3e/Disney%2B_logo.svg','DISNEY'],
-          ['https://upload.wikimedia.org/wikipedia/commons/4/4d/DreamWorks_Animation_logo.svg','DREAMWORKS'],
-          ['https://upload.wikimedia.org/wikipedia/commons/d/de/HBO_logo.svg','HBO'],
-          ['https://upload.wikimedia.org/wikipedia/commons/7/7a/Pixar_logo.svg','PIXAR'],
-          ['https://upload.wikimedia.org/wikipedia/commons/0/08/Netflix_2015_logo.svg','NETFLIX'],
-          ['https://upload.wikimedia.org/wikipedia/commons/7/7e/Universal_Pictures_logo.svg','UNIVERSAL'],
-          ['https://upload.wikimedia.org/wikipedia/commons/0/04/MarvelLogo.svg','MARVEL']
-        ];
-        var pills = logos.concat(logos).map(function(l){
-          return '<div class="studio-pill"><div class="studio-logo-box"><img src="'+l[0]+'" alt="'+l[1]+'" loading="lazy"></div>'+l[1]+'</div>';
-        }).join('');
-        var wrap = document.createElement('div');
-        wrap.id = 'studioSlider';
-        wrap.className = 'studio-slider-wrap';
-        wrap.innerHTML = '<div class="studio-track" id="studioTrack">'+pills+'</div>';
-        return wrap;
-      }
-
-      function makeSearchHero() {
-        var wrap = document.createElement('div');
-        wrap.id = 'searchHeroWrap';
-        wrap.className = 'sh-wrap';
-        wrap.innerHTML = '<div class="sh-hero"><div class="sh-inner">'
-          + '<img class="sh-bg" src="https://res.cloudinary.com/digorezin/image/upload/v1745851537/Netflix-Background_bgtauh.jpg" alt="" loading="lazy">'
-          + '<div class="sh-overlay"></div>'
-          + '<div class="sh-content">'
-          + '<h1 class="sh-title">Find Your Next Movie</h1>'
-          + '<p class="sh-sub">Search from thousands of movies &amp; shows</p>'
-          + '<div class="sh-row">'
-          + '<div class="sh-input-wrap">'
-          + '<svg width="20" height="20" fill="none" stroke="rgba(255,255,255,0.5)" stroke-width="2" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>'
-          + '<input class="sh-input" id="shInput" type="text" placeholder="Search movies, shows..." autocomplete="off">'
-          + '</div>'
-          + '<button class="sh-btn" id="shBtn"><svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7"/></svg>Search</button>'
-          + '</div>'
-          + '<div class="sh-chips">'
-          + '<span class="sh-chip" data-genre="">All</span>'
-          + '<span class="sh-chip" data-genre="Movies">Movies</span>'
-          + '<span class="sh-chip" data-genre="TV Shows">TV Shows</span>'
-          + '<span class="sh-chip" data-genre="Anime">Anime</span>'
-          + '</div>'
-          + '<div class="sh-popular">'
-          + '<span class="sh-chip" data-search="Avengers">Avengers</span>'
-          + '<span class="sh-chip" data-search="Batman">Batman</span>'
-          + '<span class="sh-chip" data-search="Interstellar">Interstellar</span>'
-          + '<span class="sh-chip" data-search="Joker">Joker</span>'
-          + '<span class="sh-chip" data-search="Inception">Inception</span>'
-          + '</div>'
-          + '<p class="sh-hint">10,000+ titles available</p>'
-          + '</div></div></div>';
-        return wrap;
-      }
-
-      function bindSlider(el) {
-        var pills = el.querySelectorAll('.studio-pill');
-        var track = el.querySelector('.studio-track');
-        pills.forEach(function(pill){
-          function on(){ track.style.animationPlayState='paused'; el.dataset.active='1'; pills.forEach(function(p){p.classList.remove('active');}); pill.classList.add('active'); }
-          function off(){ track.style.animationPlayState='running'; delete el.dataset.active; pills.forEach(function(p){p.classList.remove('active');}); }
-          pill.addEventListener('mouseenter',on);
-          pill.addEventListener('mouseleave',off);
-          pill.addEventListener('click',function(){ pill.classList.contains('active')?off():on(); });
-        });
-      }
-
-      function bindSearch(el) {
-        var input = el.querySelector('#shInput');
-        var btn   = el.querySelector('#shBtn');
-        function goSearch(q){ if(q&&q.trim()) window.location.href=BASE+'/movies?search='+encodeURIComponent(q.trim()); }
-        function goGenre(g){ window.location.href=BASE+'/movies'+(g?'?genre='+encodeURIComponent(g):''); }
-        btn.addEventListener('click',function(){ goSearch(input.value); });
-        input.addEventListener('keydown',function(e){ if(e.key==='Enter') goSearch(input.value); });
-        el.querySelectorAll('.sh-chip[data-search]').forEach(function(c){ c.addEventListener('click',function(){ goSearch(c.dataset.search); }); });
-        el.querySelectorAll('.sh-chip[data-genre]').forEach(function(c){ c.addEventListener('click',function(){ goGenre(c.dataset.genre); }); });
-      }
-
-      // Always create fresh elements so re-injection always works
-      function makeFreshElements() {
-        sliderEl  = makeSlider();
-        searchEl  = makeSearchHero();
-      }
-
-      var sliderEl, searchEl;
-      makeFreshElements();
-
-      var observer = null;
-
-      function isHome() {
-        var p = window.location.pathname;
-        return p === BASE + '/' || p === BASE || p === BASE + '/index.html' || p === '/';
-      }
-
-      function tryInject(root) {
-        var sliderDone = false;
-        var searchDone = false;
-
-        // Slider → right after .carousel-container (below hero banner)
-        var carousel = root.querySelector('.carousel-container');
-        if (carousel && carousel.parentNode) {
-          // Only insert if not already in DOM
-          if (!document.getElementById('studioSlider')) {
-            carousel.parentNode.insertBefore(sliderEl, carousel.nextSibling);
-            bindSlider(sliderEl);
-          }
-          sliderDone = true;
-        }
-
-        // Search → after the MovieRow whose h2 text is "Latest Releases"
-        var allH2 = root.querySelectorAll('h2');
-        var targetRow = null;
-        allH2.forEach(function(h2){
-          if (h2.textContent.trim() === 'Latest Releases') {
-            targetRow = h2.parentNode;
-          }
-        });
-        if (targetRow && targetRow.parentNode) {
-          if (!document.getElementById('searchHeroWrap')) {
-            targetRow.parentNode.insertBefore(searchEl, targetRow.nextSibling);
-            bindSearch(searchEl);
-          }
-          searchDone = true;
-        }
-
-        return sliderDone && searchDone;
-      }
-
-      function startObserver(root) {
-        if (observer) { observer.disconnect(); }
-        observer = new MutationObserver(function(){
-          if (tryInject(root)) observer.disconnect();
-        });
-        observer.observe(root, { childList:true, subtree:true });
-        tryInject(root);
-        setTimeout(function(){ if(observer) observer.disconnect(); }, 15000);
-      }
-
-      var root = document.getElementById('root');
-      startObserver(root);
-
-      // Re-inject when SPA navigates back to home (popstate = browser back/forward)
-      window.addEventListener('popstate', function() {
-        if (isHome()) {
-          // Elements may have been unmounted by React re-render; create fresh ones
-          makeFreshElements();
-          setTimeout(function() { startObserver(root); }, 100);
+import { useState, useMemo } from "react";
+import Navbar from "@/components/Navbar";
+import HeroBanner from "@/components/HeroBanner";
+import MovieRow from "@/components/MovieRow";
+import MovieCard from "@/components/MovieCard";
+import SearchHero from "@/components/SearchHero";
+import { SkeletonRow } from "@/components/SkeletonCard";
+import { useMovies } from "@/hooks/useMovies";
+import { type Movie } from "@/lib/api";
+
+export default function HomePage() {
+  const { movies, loading } = useMovies();
+  const [searchQuery, setSearchQuery] = useState("");
+
+  const filtered = useMemo(() => {
+    if (!searchQuery.trim()) return movies;
+    const q = searchQuery.toLowerCase();
+    return movies.filter(
+      (m) =>
+        m.title.toLowerCase().includes(q) ||
+        m.genre.toLowerCase().includes(q) ||
+        m.description.toLowerCase().includes(q)
+    );
+  }, [movies, searchQuery]);
+
+  // Newest-first: movies from the sheet are oldest→newest, so reverse gives newest→oldest
+  const newestFirst = useMemo(() => [...movies].reverse(), [movies]);
+
+  const trending = useMemo(
+    () => [...movies].sort((a, b) => b.views - a.views).slice(0, 12),
+    [movies]
+  );
+
+  const latest = useMemo(
+    () => newestFirst.slice(0, 12),
+    [newestFirst]
+  );
+
+  const genreGroups = useMemo(() => {
+    const groups: Record<string, Movie[]> = {};
+    // Use newestFirst so newest posts appear on the left in every genre row
+    newestFirst.forEach((m) => {
+      const genres = m.genre ? m.genre.split(",").map((g) => g.trim()).filter(Boolean) : ["Other"];
+      genres.forEach((g) => {
+        if (!groups[g]) groups[g] = [];
+        if (!groups[g].some((existing) => existing.id === m.id)) {
+          groups[g].push(m);
         }
       });
+    });
+    return groups;
+  }, [newestFirst]);
 
-      // Also hook into React Router's pushState (handles clicking nav links back to home)
-      (function() {
-        var _orig = history.pushState;
-        history.pushState = function() {
-          _orig.apply(history, arguments);
-          if (isHome()) {
-            makeFreshElements();
-            setTimeout(function() { startObserver(root); }, 100);
-          }
-        };
-      })();
-    })();
-    </script>
-    <script src="footer.js?v=2" defer></script>
-  </body>
-</html>
+  return (
+    <div className="min-h-screen bg-black text-white">
+      <Navbar onSearch={setSearchQuery} searchQuery={searchQuery} />
+
+      {searchQuery ? (
+        /* ── Inline search results (when user types in Navbar search) ── */
+        <div className="pt-24 pb-12">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mb-6">
+            <h2 className="text-xl text-white/80">
+              Search results for{" "}
+              <span className="text-yellow-400 font-bold">"{searchQuery}"</span>
+              <span className="text-white/40 ml-2">({filtered.length} found)</span>
+            </h2>
+          </div>
+          {filtered.length > 0 ? (
+            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-7 gap-3">
+              {filtered.map((movie) => (
+                <MovieCard key={movie.id} movie={movie} />
+              ))}
+            </div>
+          ) : (
+            <div className="text-center py-24 text-white/40">
+              <p className="text-lg">No movies found for "{searchQuery}"</p>
+            </div>
+          )}
+        </div>
+      ) : (
+        <>
+          {/* ── Hero Banner ── */}
+          {loading ? (
+            <div className="pt-16">
+              <div className="h-[70vh] min-h-[500px] bg-black animate-pulse" />
+            </div>
+          ) : (
+            <HeroBanner movies={movies} />
+          )}
+
+          {/* ── Movie Rows ── */}
+          <div className="pt-2 pb-16">
+            {loading ? (
+              <>
+                <SkeletonRow />
+                <SkeletonRow />
+                <SkeletonRow />
+              </>
+            ) : (
+              <>
+                <MovieRow title="Trending Now" movies={trending} />
+                <MovieRow title="Latest Releases" movies={latest} />
+
+                {/* ── Search Hero — after Latest Releases ── */}
+                <SearchHero />
+
+                {Object.entries(genreGroups).map(([genre, genreMovies]) => (
+                  <MovieRow key={genre} title={genre} movies={genreMovies} />
+                ))}
+              </>
+            )}
+          </div>
+        </>
+      )}
+
+      <footer className="border-t border-white/10 py-8 text-center text-white/30 text-sm">
+        <div className="flex items-center justify-center gap-2 mb-2">
+          <span className="text-white font-black tracking-widest">
+            MOOV<span className="text-yellow-400">IED</span>
+          </span>
+        </div>
+        <p>Stream &amp; Download your favorite movies.</p>
+      </footer>
+    </div>
+  );
+}
