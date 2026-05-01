@@ -23,19 +23,23 @@ export default function HomePage() {
     );
   }, [movies, searchQuery]);
 
+  // Newest-first: movies from the sheet are oldest→newest, so reverse gives newest→oldest
+  const newestFirst = useMemo(() => [...movies].reverse(), [movies]);
+
   const trending = useMemo(
     () => [...movies].sort((a, b) => b.views - a.views).slice(0, 12),
     [movies]
   );
 
   const latest = useMemo(
-    () => [...movies].sort((a, b) => parseInt(b.year) - parseInt(a.year)).slice(0, 12),
-    [movies]
+    () => newestFirst.slice(0, 12),
+    [newestFirst]
   );
 
   const genreGroups = useMemo(() => {
     const groups: Record<string, Movie[]> = {};
-    movies.forEach((m) => {
+    // Use newestFirst so newest posts appear on the left in every genre row
+    newestFirst.forEach((m) => {
       const genres = m.genre ? m.genre.split(",").map((g) => g.trim()).filter(Boolean) : ["Other"];
       genres.forEach((g) => {
         if (!groups[g]) groups[g] = [];
@@ -45,7 +49,7 @@ export default function HomePage() {
       });
     });
     return groups;
-  }, [movies]);
+  }, [newestFirst]);
 
   return (
     <div className="min-h-screen bg-black text-white">
