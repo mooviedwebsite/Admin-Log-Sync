@@ -728,46 +728,89 @@
         el.querySelectorAll('.sh-chip[data-genre]').forEach(function(c){ c.addEventListener('click',function(){ goGenre(c.dataset.genre); }); });
       }
 
-      var sliderEl   = makeSlider();
-      var searchEl   = makeSearchHero();
-      var sliderDone = false;
-      var searchDone = false;
+      // Always create fresh elements so re-injection always works
+      function makeFreshElements() {
+        sliderEl  = makeSlider();
+        searchEl  = makeSearchHero();
+      }
+
+      var sliderEl, searchEl;
+      makeFreshElements();
+
+      var observer = null;
+
+      function isHome() {
+        var p = window.location.pathname;
+        return p === BASE + '/' || p === BASE || p === BASE + '/index.html' || p === '/';
+      }
 
       function tryInject(root) {
+        var sliderDone = false;
+        var searchDone = false;
+
         // Slider → right after .carousel-container (below hero banner)
-        if (!sliderDone) {
-          var carousel = root.querySelector('.carousel-container');
-          if (carousel && carousel.parentNode) {
+        var carousel = root.querySelector('.carousel-container');
+        if (carousel && carousel.parentNode) {
+          // Only insert if not already in DOM
+          if (!document.getElementById('studioSlider')) {
             carousel.parentNode.insertBefore(sliderEl, carousel.nextSibling);
             bindSlider(sliderEl);
-            sliderDone = true;
           }
+          sliderDone = true;
         }
+
         // Search → after the MovieRow whose h2 text is "Latest Releases"
-        // MovieRow renders: <div class="mb-10"><h2>Title</h2>...</div>
-        if (!searchDone) {
-          var allH2 = root.querySelectorAll('h2');
-          var targetRow = null;
-          allH2.forEach(function(h2){
-            if (h2.textContent.trim() === 'Latest Releases') {
-              // The MovieRow wrapper is the direct parent of h2
-              targetRow = h2.parentNode;
-            }
-          });
-          if (targetRow && targetRow.parentNode) {
+        var allH2 = root.querySelectorAll('h2');
+        var targetRow = null;
+        allH2.forEach(function(h2){
+          if (h2.textContent.trim() === 'Latest Releases') {
+            targetRow = h2.parentNode;
+          }
+        });
+        if (targetRow && targetRow.parentNode) {
+          if (!document.getElementById('searchHeroWrap')) {
             targetRow.parentNode.insertBefore(searchEl, targetRow.nextSibling);
             bindSearch(searchEl);
-            searchDone = true;
           }
+          searchDone = true;
         }
+
         return sliderDone && searchDone;
       }
 
+      function startObserver(root) {
+        if (observer) { observer.disconnect(); }
+        observer = new MutationObserver(function(){
+          if (tryInject(root)) observer.disconnect();
+        });
+        observer.observe(root, { childList:true, subtree:true });
+        tryInject(root);
+        setTimeout(function(){ if(observer) observer.disconnect(); }, 15000);
+      }
+
       var root = document.getElementById('root');
-      var observer = new MutationObserver(function(){ if(tryInject(root)) observer.disconnect(); });
-      observer.observe(root, { childList:true, subtree:true });
-      tryInject(root);
-      setTimeout(function(){ observer.disconnect(); }, 15000);
+      startObserver(root);
+
+      // Re-inject when SPA navigates back to home (popstate = browser back/forward)
+      window.addEventListener('popstate', function() {
+        if (isHome()) {
+          // Elements may have been unmounted by React re-render; create fresh ones
+          makeFreshElements();
+          setTimeout(function() { startObserver(root); }, 100);
+        }
+      });
+
+      // Also hook into React Router's pushState (handles clicking nav links back to home)
+      (function() {
+        var _orig = history.pushState;
+        history.pushState = function() {
+          _orig.apply(history, arguments);
+          if (isHome()) {
+            makeFreshElements();
+            setTimeout(function() { startObserver(root); }, 100);
+          }
+        };
+      })();
     })();
     </script>
     <script src="footer.js?v=2" defer></script>
