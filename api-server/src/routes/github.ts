@@ -2,33 +2,26 @@ import { Router } from "express";
 
 const router = Router();
 
-const GITHUB_REPO  = "mooviedwebsite/Admin-Log-Sync";
+const GITHUB_REPO   = "mooviedwebsite/Admin-Log-Sync";
 const GITHUB_BRANCH = "main";
 
-// ── Token helpers (env-first, then in-memory fallback) ──────────────────────
+// In-memory token store (also reads from env)
 let _tokenInMemory = "";
-function getToken(): string {
-  return process.env.GITHUB_TOKEN || _tokenInMemory;
+function getToken(bodyToken?: string): string {
+  return bodyToken || process.env.GITHUB_TOKEN || _tokenInMemory;
 }
 
-// ── Auto-sync config (in-memory; swap for DB if you need persistence) ────────
-let autoSyncConfig: {
-  enabled: boolean;
-  intervalMinutes: number;
-  lastRun: string | null;
-  githubToken: string;
-} = {
+// Auto-sync config (in-memory)
+let autoSyncConfig = {
   enabled: false,
-  intervalMinutes: 60,
-  lastRun: null,
-  githubToken: "",
+  intervalHours: 12,
+  gasUrl: "",
+  lastSyncAt: null as string | null,
+  lastSyncStatus: "idle" as "idle" | "ok" | "error",
 };
 
-// ── GET current file SHA from GitHub (required before every update) ──────────
-async function getFileSha(
-  file: string,
-  token: string
-): Promise<string | null> {
+// Get current SHA of a file in GitHub (required for updates)
+async function getFileSha(file: string, token: string): Promise<string | null> {
   const url = `https://api.github.com/repos/${GITHUB_REPO}/contents/${file}?ref=${GITHUB_BRANCH}`;
   const res = await fetch(url, {
     headers: {
@@ -37,7 +30,7 @@ async function getFileSha(
       "User-Agent": "moovied-admin",
     },
   });
-  if (res.status === 404) return null; // file doesn't exist yet
+  if (res.status === 404) return null;
   if (!res.ok) {
     const text = await res.text().catch(() => res.statusText);
     throw new Error(`GitHub getFileSha failed (${res.status}): ${text}`);
@@ -46,10 +39,10 @@ async function getFileSha(
   return data.sha ?? null;
 }
 
-// ── PUT /api/github/push ─────────────────────────────────────────────────────
-// Body: { file: string, content: string|object, message: string, token?: string }
-// "content" can be a raw JSON-serialisable value OR a base64 string already.
-// We always re-encode to base64 here so the frontend doesn't need to.
+// ── PUT /api/github/push ──────────────────────────────────────────────────────
+// Body: { file, content, message, token?, raw? }
+// - content: JSON-serialisable value OR base64 string (when raw=true)
+// - raw: if true, content is already base64-encoded (image uploads)
 router.put("/github/push", async (req, res) => {
   try {
     const {
@@ -57,42 +50,45 @@ router.put("/github/push", async (req, res) => {
       content,
       message = "Update via MOOVIED admin",
       token: bodyToken,
+      raw = false,
     } = req.body as {
       file: string;
       content: unknown;
       message?: string;
       token?: string;
+      raw?: boolean;
     };
 
     if (!file) {
       return res.status(400).json({ success: false, error: "file is required" });
     }
 
-    const token = bodyToken || getToken();
+    const token = getToken(bodyToken);
     if (!token) {
       return res.status(403).json({
         success: false,
         error:
-          "No GitHub token configured. Set GITHUB_TOKEN env var on your Replit server, or paste your token in Admin → Settings → GitHub Token.",
+          "No GitHub token. Paste your token in Admin → Ads Manager → GitHub Token field and click Save Token, then retry.",
       });
     }
 
-    // Serialise content → UTF-8 string → base64
-    const raw =
-      typeof content === "string" ? content : JSON.stringify(content, null, 2);
-    const encoded = Buffer.from(raw, "utf-8").toString("base64");
+    // Encode content to base64
+    let encoded: string;
+    if (raw && typeof content === "string") {
+      // Already base64 (image upload)
+      encoded = content;
+    } else {
+      const raw_str = typeof content === "string" ? content : JSON.stringify(content, null, 2);
+      encoded = Buffer.from(raw_str, "utf-8").toString("base64");
+    }
 
-    // Get current SHA (needed to update an existing file)
+    // Get current SHA
     const sha = await getFileSha(file, token);
 
-    // Push to GitHub Contents API
+    // Push to GitHub
     const apiUrl = `https://api.github.com/repos/${GITHUB_REPO}/contents/${file}`;
-    const body: Record<string, unknown> = {
-      message,
-      content: encoded,
-      branch: GITHUB_BRANCH,
-    };
-    if (sha) body.sha = sha; // omit for new files
+    const body: Record<string, unknown> = { message, content: encoded, branch: GITHUB_BRANCH };
+    if (sha) body.sha = sha;
 
     const ghRes = await fetch(apiUrl, {
       method: "PUT",
@@ -107,17 +103,16 @@ router.put("/github/push", async (req, res) => {
 
     if (!ghRes.ok) {
       const errText = await ghRes.text().catch(() => ghRes.statusText);
-      // Surface a friendly message for common problems
       if (ghRes.status === 401) {
         return res.status(401).json({
           success: false,
-          error: "GitHub token is invalid or expired. Please generate a new Fine-grained token with Contents: Read & Write.",
+          error: "GitHub token is invalid or expired. Generate a new Fine-grained token with Contents: Read & Write.",
         });
       }
       if (ghRes.status === 403) {
         return res.status(403).json({
           success: false,
-          error: "GitHub token does not have write permission for this repository. Enable Contents: Read & Write.",
+          error: "GitHub token lacks write permission. Enable Contents: Read & Write on the repository.",
         });
       }
       return res.status(ghRes.status).json({
@@ -127,53 +122,43 @@ router.put("/github/push", async (req, res) => {
     }
 
     const result = (await ghRes.json()) as { content?: { name: string } };
-    return res.json({
-      success: true,
-      file: result.content?.name ?? file,
-      message: "Pushed to GitHub successfully",
-    });
+    return res.json({ success: true, file: result.content?.name ?? file });
   } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err);
-    return res.status(500).json({ success: false, error: msg });
+    return res.status(500).json({ success: false, error: err instanceof Error ? err.message : String(err) });
   }
 });
 
-// ── GET /api/autosync/config ─────────────────────────────────────────────────
+// ── GET /api/autosync/config ──────────────────────────────────────────────────
 router.get("/autosync/config", (_req, res) => {
-  // Don't expose the token value over the wire
-  const { githubToken: _, ...safe } = autoSyncConfig;
   return res.json({
     success: true,
-    config: {
-      ...safe,
-      hasToken: !!autoSyncConfig.githubToken || !!getToken(),
-    },
+    config: { ...autoSyncConfig, hasToken: !!(process.env.GITHUB_TOKEN || _tokenInMemory) },
   });
 });
 
-// ── POST /api/autosync/config ────────────────────────────────────────────────
+// ── POST /api/autosync/config ─────────────────────────────────────────────────
 router.post("/autosync/config", (req, res) => {
-  const { enabled, intervalMinutes, githubToken } = req.body as {
+  const { enabled, intervalHours, gasUrl, gasSecret, githubToken } = req.body as {
     enabled?: boolean;
-    intervalMinutes?: number;
+    intervalHours?: number;
+    gasUrl?: string;
+    gasSecret?: string;
     githubToken?: string;
   };
   if (enabled !== undefined)        autoSyncConfig.enabled = enabled;
-  if (intervalMinutes !== undefined) autoSyncConfig.intervalMinutes = intervalMinutes;
-  if (githubToken !== undefined) {
-    autoSyncConfig.githubToken = githubToken;
-    _tokenInMemory = githubToken; // also use for direct pushes
-  }
-  const { githubToken: _, ...safe } = autoSyncConfig;
-  return res.json({ success: true, config: { ...safe, hasToken: !!getToken() } });
+  if (intervalHours !== undefined)  autoSyncConfig.intervalHours = intervalHours;
+  if (gasUrl !== undefined)         autoSyncConfig.gasUrl = gasUrl;
+  if (githubToken)                  _tokenInMemory = githubToken;
+  return res.json({
+    success: true,
+    config: { ...autoSyncConfig, hasToken: !!(process.env.GITHUB_TOKEN || _tokenInMemory) },
+  });
 });
 
-// ── POST /api/autosync/trigger ───────────────────────────────────────────────
-// Manual trigger — returns immediately; the actual sync is done client-side
-// (the admin page fetches GAS data and calls /github/push itself)
+// ── POST /api/autosync/trigger ────────────────────────────────────────────────
 router.post("/autosync/trigger", (_req, res) => {
-  autoSyncConfig.lastRun = new Date().toISOString();
-  return res.json({ success: true, triggeredAt: autoSyncConfig.lastRun });
+  autoSyncConfig.lastSyncAt = new Date().toISOString();
+  return res.json({ success: true, triggeredAt: autoSyncConfig.lastSyncAt });
 });
 
 export default router;
