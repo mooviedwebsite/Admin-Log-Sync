@@ -515,6 +515,22 @@
           if (document.visibilityState === 'visible') initialSync();
         });
 
+        // When tab becomes visible again, blur all YouTube iframes so their
+        // player controls (prev/play/forward) never show on focus-return
+        document.addEventListener('visibilitychange', function() {
+          if (document.visibilityState === 'visible') {
+            setTimeout(function() {
+              document.querySelectorAll('.hb-yt-iframe').forEach(function(f) {
+                f.blur();
+                // Move focus to a neutral element so the iframe is never active
+                document.activeElement && document.activeElement.blur();
+              });
+              // Also shift focus to body so nothing inside iframe is focused
+              document.body.focus();
+            }, 0);
+          }
+        });
+
         window.addEventListener('storage', function(ev){
           if (ev.key === SESSION_KEY) {
             var u = getCurrentUser();
