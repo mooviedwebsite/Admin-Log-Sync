@@ -232,20 +232,43 @@ async function gasGet(action, extra = {}) {
 }
 
 // Fire-and-forget POST to GAS — never blocks the response
-function gasPost(body) {
+// gasPost — awaitable POST to GAS, returns parsed JSON result.
+// GAS always 302-redirects POST to a GET — fetchUrl follows that redirect.
+async function gasPost(body) {
+  const jsonBody = JSON.stringify(body);
+  try {
+    const r = await fetchUrl(GAS_URL, {
+      method: 'POST',
+      headers: {
+        'Content-Type':   'application/json',
+        'Content-Length': Buffer.byteLength(jsonBody).toString(),
+        'User-Agent':     'MOOVIED-Server/1.0',
+      },
+      body: jsonBody,
+    });
+    console.log(`[GAS POST] ${body.action} → HTTP ${r.status}`);
+    return r.body || { success: false, error: 'No response from GAS' };
+  } catch (e) {
+    console.log(`[GAS POST] ${body.action} error: ${e.message}`);
+    return { success: false, error: e.message };
+  }
+}
+
+// gasPostFireForget — legacy non-blocking version (used for comment mutations)
+function gasPostFireForget(body) {
   const jsonBody = JSON.stringify(body);
   fetchUrlNoRedirect(GAS_URL, {
     method: 'POST',
     headers: {
-      'Content-Type':  'application/json',
+      'Content-Type':   'application/json',
       'Content-Length': Buffer.byteLength(jsonBody).toString(),
-      'User-Agent':    'MOOVIED-Server/1.0',
+      'User-Agent':     'MOOVIED-Server/1.0',
     },
     body: jsonBody,
   }).then(r => {
-    console.log(`[GAS POST] ${body.action} → HTTP ${r.status}`);
+    console.log(`[GAS ff] ${body.action} → HTTP ${r.status}`);
   }).catch(e => {
-    console.log(`[GAS POST] ${body.action} error: ${e.message}`);
+    console.log(`[GAS ff] ${body.action} error: ${e.message}`);
   });
 }
 
@@ -659,7 +682,7 @@ async function handleApi(req, res, apiPath) {
 
     // Async: POST to GAS (triggers doPost, data saved to sheet)
     // id is passed so GAS uses the same UUID as local (requires code.gs v4.1+)
-    gasPost({ action: 'addComment', id: comment.id, movieId, userId, userName, content, reply_to: replyTo, reply_to_name: replyToName });
+    gasPostFireForget({ action: 'addComment', id: comment.id, movieId, userId, userName, content, reply_to: replyTo, reply_to_name: replyToName });
 
     // Async: push updated comments.json to GitHub
     syncCommentsToGithub(all);
@@ -682,7 +705,7 @@ async function handleApi(req, res, apiPath) {
     all[idx].edited  = true;
     writeComments(all);
 
-    gasPost({ action: 'editComment', id, content });
+    gasPostFireForget({ action: 'editComment', id, content });
     syncCommentsToGithub(all);
 
     return json(res, { success: true });
@@ -698,7 +721,7 @@ async function handleApi(req, res, apiPath) {
     all.splice(idx, 1);
     writeComments(all);
 
-    gasPost({ action: 'deleteComment', id });
+    gasPostFireForget({ action: 'deleteComment', id });
     syncCommentsToGithub(all);
 
     return json(res, { success: true });
@@ -715,7 +738,7 @@ async function handleApi(req, res, apiPath) {
     all[idx].likes = (Number(all[idx].likes) || 0) + 1;
     writeComments(all);
 
-    gasPost({ action: 'likeComment', id });
+    gasPostFireForget({ action: 'likeComment', id });
     syncCommentsToGithub(all);
 
     return json(res, { success: true, likes: all[idx].likes });
@@ -769,60 +792,65 @@ async function handleApi(req, res, apiPath) {
   }
 
   // ══════════════════════════════════════════════════════════════════════════
-  // GITHUB PUSH — single file (PUT or POST both accepted)
+  // GITHUB PUSH — proxied through GAS (api.github.com not reachable from server)
+  //   PUT/POST /api/github/push  { file, content, message, raw? }
+  //     raw=true  → image upload (content is base64) → GAS:pushImageToGithub
+  //     raw=false → JSON file push (content is array/object) → GAS:pushMoviesJson or syncAllToGithub
   // ══════════════════════════════════════════════════════════════════════════
 
   if (apiPath === '/github/push' && (method === 'PUT' || method === 'POST')) {
     const body = await readBody(req);
     if (!body.file || !body.content) return json(res, { error: 'file and content required' }, 400);
     try {
-      // body.raw === true means content is already base64 (image upload from browser)
-      await githubPush(body.file, body.content, body.message || 'Upload via MOOVIED', !!body.raw);
-      // For images, return the raw.githubusercontent.com CDN URL so the frontend can use it immediately
-      const cdnUrl = body.raw
-        ? `https://raw.githubusercontent.com/${GITHUB_OWNER}/${GITHUB_REPO}/${GITHUB_BRANCH}/${body.file}`
-        : null;
-      return json(res, { success: true, file: body.file, url: cdnUrl });
+      let r;
+      if (body.raw) {
+        // Image upload — delegate to GAS which can reach api.github.com
+        r = await gasPost({ action: 'pushImageToGithub', file: body.file, content: body.content, message: body.message || 'Upload image via MOOVIED' });
+      } else {
+        // JSON file push (movies.json etc)
+        r = await gasPost({ action: 'pushMoviesJson', movies: body.content, message: body.message });
+      }
+      if (!r || !r.success) throw new Error(r && r.error ? r.error : 'GAS push failed');
+      console.log('[GitHub via GAS] pushed', body.file);
+      return json(res, { success: true, file: body.file, url: r.url || null });
     } catch (e) {
-      console.error('[GitHub push] error:', e.message);
+      console.error('[GitHub via GAS] error:', e.message);
       return json(res, { success: false, error: e.message }, 500);
     }
   }
 
   // ══════════════════════════════════════════════════════════════════════════
-  // GITHUB SYNC — full sync from GAS → local → GitHub
+  // GITHUB SYNC — full sync via GAS (movies + comments + activity data)
+  //   POST /api/github/sync
   // ══════════════════════════════════════════════════════════════════════════
 
   if (apiPath === '/github/sync' && method === 'POST') {
     try {
       console.log('[sync] starting full GAS → GitHub sync');
-      const result = await fullSyncFromGAS();
+      const r = await gasPost({ action: 'syncAllToGithub' });
       const cfg = loadAutosyncConfig();
       cfg.lastSync = new Date().toISOString();
       saveAutosyncConfig(cfg);
-      console.log('[sync] done:', JSON.stringify(result.githubPushed));
-      return json(res, { success: true, ...result, syncedAt: cfg.lastSync });
+      if (!r || !r.success) throw new Error(r && r.error ? r.error : 'GAS sync failed');
+      console.log('[sync] done:', JSON.stringify(r.results || []));
+      return json(res, { success: true, results: r.results || [], syncedAt: cfg.lastSync });
     } catch (e) {
+      console.error('[sync] error:', e.message);
       return json(res, { success: false, error: e.message }, 500);
     }
   }
 
   // ══════════════════════════════════════════════════════════════════════════
-  // GITHUB TOKEN STATUS
+  // GITHUB STATUS — check token via GAS
   // ══════════════════════════════════════════════════════════════════════════
 
   if (apiPath === '/github/status' && method === 'GET') {
-    const masked = GITHUB_TOKEN
-      ? GITHUB_TOKEN.slice(0, 12) + '•••••••••••••••••' + GITHUB_TOKEN.slice(-4)
-      : '';
-    return json(res, {
-      success: true,
-      hasToken: !!GITHUB_TOKEN,
-      masked,
-      owner: GITHUB_OWNER,
-      repo:  GITHUB_REPO,
-      branch: GITHUB_BRANCH,
-    });
+    try {
+      const r = await gasGet('githubStatus');
+      return json(res, r);
+    } catch (e) {
+      return json(res, { success: false, error: e.message }, 500);
+    }
   }
 
   // ══════════════════════════════════════════════════════════════════════════
