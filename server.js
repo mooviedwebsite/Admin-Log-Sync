@@ -259,7 +259,10 @@ function gasSync(action, params = {}) {
 
 // ── GitHub push helper ────────────────────────────────────────────────────────
 
-async function githubPush(filePath, content, message) {
+// githubPush(filePath, content, message, rawBase64)
+//   rawBase64=true  → content is already a base64 string (e.g. image upload from browser)
+//   rawBase64=false → content is a JS value (array/object/string) — will be JSON-stringified then b64-encoded
+async function githubPush(filePath, content, message, rawBase64 = false) {
   if (!GITHUB_TOKEN) throw new Error('No GitHub token configured');
   const apiUrl = `https://api.github.com/repos/${GITHUB_OWNER}/${GITHUB_REPO}/contents/${filePath}`;
   const ghHeaders = {
@@ -269,23 +272,32 @@ async function githubPush(filePath, content, message) {
     'User-Agent': 'MOOVIED-Server/1.0',
   };
 
-  // Step 1: get current SHA (needed to update existing files)
+  // Step 1: get current SHA (required to update existing files)
   let sha = '';
   try {
     const getR = await githubFetch('GET', `${apiUrl}?ref=${GITHUB_BRANCH}`, ghHeaders);
     if (getR.status === 200 && getR.body && getR.body.sha) sha = getR.body.sha;
   } catch (e) { /* new file — no sha needed */ }
 
-  // Step 2: PUT the file
-  const b64 = Buffer.from(
-    typeof content === 'string' ? content : JSON.stringify(content, null, 2)
-  ).toString('base64');
+  // Step 2: encode content
+  // rawBase64=true  → browser already sent us the base64 string (image upload) — use as-is
+  // rawBase64=false → encode the JS value to JSON, then base64
+  let b64;
+  if (rawBase64) {
+    // Strip any data-URL prefix if accidentally included (data:image/jpeg;base64,...)
+    b64 = typeof content === 'string' ? content.replace(/^data:[^;]+;base64,/, '') : content;
+  } else {
+    const text = typeof content === 'string' ? content : JSON.stringify(content, null, 2);
+    b64 = Buffer.from(text, 'utf8').toString('base64');
+  }
+
+  // Step 3: PUT
   const payload = { message: message || 'Sync via MOOVIED', content: b64, branch: GITHUB_BRANCH };
   if (sha) payload.sha = sha;
 
   const putR = await githubFetch('PUT', apiUrl, ghHeaders, JSON.stringify(payload));
   if (putR.status !== 200 && putR.status !== 201) {
-    const detail = putR.raw ? putR.raw.slice(0, 300) : `HTTP ${putR.status}`;
+    const detail = putR.raw ? putR.raw.slice(0, 400) : `HTTP ${putR.status}`;
     throw new Error(`GitHub push failed (HTTP ${putR.status}): ${detail}`);
   }
   console.log(`[GitHub] pushed ${filePath} (HTTP ${putR.status})`);
@@ -764,9 +776,15 @@ async function handleApi(req, res, apiPath) {
     const body = await readBody(req);
     if (!body.file || !body.content) return json(res, { error: 'file and content required' }, 400);
     try {
-      await githubPush(body.file, body.content, body.message || 'Upload via MOOVIED');
-      return json(res, { success: true, file: body.file });
+      // body.raw === true means content is already base64 (image upload from browser)
+      await githubPush(body.file, body.content, body.message || 'Upload via MOOVIED', !!body.raw);
+      // For images, return the raw.githubusercontent.com CDN URL so the frontend can use it immediately
+      const cdnUrl = body.raw
+        ? `https://raw.githubusercontent.com/${GITHUB_OWNER}/${GITHUB_REPO}/${GITHUB_BRANCH}/${body.file}`
+        : null;
+      return json(res, { success: true, file: body.file, url: cdnUrl });
     } catch (e) {
+      console.error('[GitHub push] error:', e.message);
       return json(res, { success: false, error: e.message }, 500);
     }
   }
