@@ -11,7 +11,7 @@ const ROOT_DIR  = __dirname;
 
 // ── GAS & GitHub config ───────────────────────────────────────────────────────
 const GAS_URL = 'https://script.google.com/macros/s/AKfycbwMcrOMCPmRMgbWunm0eQnweODbktt_6yvv8oKR8p61_n4ULAsuCD2wBtokaNPN4VyT/exec';
-const GITHUB_TOKEN  = process.env.GITHUB_TOKEN || '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';
+const GITHUB_TOKEN  = process.env.GITHUB_TOKEN || '';
 const GITHUB_OWNER  = 'mooviedwebsite';
 const GITHUB_REPO   = 'Admin-Log-Sync';
 const GITHUB_BRANCH = 'main';
@@ -232,43 +232,20 @@ async function gasGet(action, extra = {}) {
 }
 
 // Fire-and-forget POST to GAS — never blocks the response
-// gasPost — awaitable POST to GAS, returns parsed JSON result.
-// GAS always 302-redirects POST to a GET — fetchUrl follows that redirect.
-async function gasPost(body) {
-  const jsonBody = JSON.stringify(body);
-  try {
-    const r = await fetchUrl(GAS_URL, {
-      method: 'POST',
-      headers: {
-        'Content-Type':   'application/json',
-        'Content-Length': Buffer.byteLength(jsonBody).toString(),
-        'User-Agent':     'MOOVIED-Server/1.0',
-      },
-      body: jsonBody,
-    });
-    console.log(`[GAS POST] ${body.action} → HTTP ${r.status}`);
-    return r.body || { success: false, error: 'No response from GAS' };
-  } catch (e) {
-    console.log(`[GAS POST] ${body.action} error: ${e.message}`);
-    return { success: false, error: e.message };
-  }
-}
-
-// gasPostFireForget — legacy non-blocking version (used for comment mutations)
-function gasPostFireForget(body) {
+function gasPost(body) {
   const jsonBody = JSON.stringify(body);
   fetchUrlNoRedirect(GAS_URL, {
     method: 'POST',
     headers: {
-      'Content-Type':   'application/json',
+      'Content-Type':  'application/json',
       'Content-Length': Buffer.byteLength(jsonBody).toString(),
-      'User-Agent':     'MOOVIED-Server/1.0',
+      'User-Agent':    'MOOVIED-Server/1.0',
     },
     body: jsonBody,
   }).then(r => {
-    console.log(`[GAS ff] ${body.action} → HTTP ${r.status}`);
+    console.log(`[GAS POST] ${body.action} → HTTP ${r.status}`);
   }).catch(e => {
-    console.log(`[GAS ff] ${body.action} error: ${e.message}`);
+    console.log(`[GAS POST] ${body.action} error: ${e.message}`);
   });
 }
 
@@ -282,139 +259,36 @@ function gasSync(action, params = {}) {
 
 // ── GitHub push helper ────────────────────────────────────────────────────────
 
-// githubPush(filePath, content, message, rawBase64)
-//   rawBase64=true  → content is already a base64 string (e.g. image upload from browser)
-//   rawBase64=false → content is a JS value (array/object/string) — will be JSON-stringified then b64-encoded
-async function githubPush(filePath, content, message, rawBase64 = false) {
-  if (!GITHUB_TOKEN) throw new Error('No GitHub token configured');
+async function githubPush(filePath, content, message) {
+  if (!GITHUB_TOKEN) return;
   const apiUrl = `https://api.github.com/repos/${GITHUB_OWNER}/${GITHUB_REPO}/contents/${filePath}`;
-  const ghHeaders = {
-    Authorization: `token ${GITHUB_TOKEN}`,
-    Accept: 'application/vnd.github.v3+json',
-    'Content-Type': 'application/json',
-    'User-Agent': 'MOOVIED-Server/1.0',
-  };
-
-  // Step 1: get current SHA (required to update existing files)
-  let sha = '';
   try {
-    const getR = await githubFetch('GET', `${apiUrl}?ref=${GITHUB_BRANCH}`, ghHeaders);
-    if (getR.status === 200 && getR.body && getR.body.sha) sha = getR.body.sha;
-  } catch (e) { /* new file — no sha needed */ }
-
-  // Step 2: encode content
-  // rawBase64=true  → browser already sent us the base64 string (image upload) — use as-is
-  // rawBase64=false → encode the JS value to JSON, then base64
-  let b64;
-  if (rawBase64) {
-    // Strip any data-URL prefix if accidentally included (data:image/jpeg;base64,...)
-    b64 = typeof content === 'string' ? content.replace(/^data:[^;]+;base64,/, '') : content;
-  } else {
-    const text = typeof content === 'string' ? content : JSON.stringify(content, null, 2);
-    b64 = Buffer.from(text, 'utf8').toString('base64');
-  }
-
-  // Step 3: PUT
-  const payload = { message: message || 'Sync via MOOVIED', content: b64, branch: GITHUB_BRANCH };
-  if (sha) payload.sha = sha;
-
-  const putR = await githubFetch('PUT', apiUrl, ghHeaders, JSON.stringify(payload));
-  if (putR.status !== 200 && putR.status !== 201) {
-    const detail = putR.raw ? putR.raw.slice(0, 400) : `HTTP ${putR.status}`;
-    throw new Error(`GitHub push failed (HTTP ${putR.status}): ${detail}`);
-  }
-  console.log(`[GitHub] pushed ${filePath} (HTTP ${putR.status})`);
-  return true;
-}
-
-// Raw GitHub HTTP — never follows redirects so PUT stays PUT
-function githubFetch(method, targetUrl, headers, body) {
-  return new Promise((resolve, reject) => {
-    const parsed = new URL(targetUrl);
-    const opts = {
-      hostname: parsed.hostname,
-      port: 443,
-      path: parsed.pathname + parsed.search,
-      method,
-      headers,
-    };
-    const req = https.request(opts, (res) => {
-      let raw = '';
-      res.on('data', c => raw += c);
-      res.on('end', () => {
-        let parsed2 = null;
-        try { parsed2 = JSON.parse(raw); } catch {}
-        resolve({ status: res.statusCode, body: parsed2, raw });
-      });
+    let sha = '';
+    const r = await fetchUrl(`${apiUrl}?ref=${GITHUB_BRANCH}`, {
+      headers: { Authorization: `token ${GITHUB_TOKEN}`, Accept: 'application/vnd.github.v3+json' },
     });
-    req.on('error', reject);
-    if (body) req.write(body);
-    req.end();
-  });
+    if (r.body && r.body.sha) sha = r.body.sha;
+    const b64 = Buffer.from(typeof content === 'string' ? content : JSON.stringify(content, null, 2)).toString('base64');
+    const payload = { message, content: b64, branch: GITHUB_BRANCH };
+    if (sha) payload.sha = sha;
+    await fetchUrl(apiUrl, {
+      method: 'PUT',
+      headers: {
+        Authorization: `token ${GITHUB_TOKEN}`,
+        Accept: 'application/vnd.github.v3+json',
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(payload),
+    });
+    console.log(`[GitHub] pushed ${filePath}`);
+  } catch (e) {
+    console.log(`[GitHub] push ${filePath} error: ${e.message}`);
+  }
 }
 
-// Push multiple data files to GitHub in parallel (fire-and-forget friendly)
-async function githubPushAll(files) {
-  const results = await Promise.allSettled(
-    files.map(([path, content, msg]) => githubPush(path, content, msg))
-  );
-  results.forEach((r, i) => {
-    if (r.status === 'rejected') console.log(`[GitHub] ${files[i][0]} failed: ${r.reason.message}`);
-  });
-  return results;
-}
-
-// Async: push comments.json to GitHub (fire-and-forget)
+// Async: push comments.json to GitHub (don't await)
 function syncCommentsToGithub(comments) {
-  githubPush('data/comments.json', comments, 'sync: comments updated')
-    .catch(e => console.log('[GitHub] comments sync error:', e.message));
-}
-
-// Full sync: pull all data from GAS and push to GitHub
-async function fullSyncFromGAS() {
-  const log   = [];
-  const pushed = [];
-
-  try {
-    const r = await gasGet('getAllComments');
-    if (r.success && Array.isArray(r.comments)) {
-      writeComments(r.comments);
-      pushed.push(['data/comments.json', r.comments, 'sync: all comments']);
-      log.push({ item: 'comments', count: r.comments.length, ok: true });
-    }
-  } catch (e) { log.push({ item: 'comments', ok: false, error: e.message }); }
-
-  try {
-    const r = await gasGet('getMovieLikes');
-    if (r.success) {
-      const likes = Array.isArray(r.likes) ? r.likes : Object.values(r.likes || {});
-      const lp = require('path').join(DATA_DIR, 'movie-likes.json');
-      require('fs').writeFileSync(lp, JSON.stringify(likes, null, 2));
-      pushed.push(['data/movie-likes.json', likes, 'sync: movie likes']);
-      log.push({ item: 'movie-likes', count: likes.length, ok: true });
-    }
-  } catch (e) { log.push({ item: 'movie-likes', ok: false, error: e.message }); }
-
-  try {
-    const r = await gasGet('getCommentLikes');
-    if (r.success) {
-      const cl = Array.isArray(r.likes) ? r.likes : (r.commentLikes || []);
-      const cp = require('path').join(DATA_DIR, 'comment-likes.json');
-      require('fs').writeFileSync(cp, JSON.stringify(cl, null, 2));
-      pushed.push(['data/comment-likes.json', cl, 'sync: comment likes']);
-      log.push({ item: 'comment-likes', count: cl.length, ok: true });
-    }
-  } catch (e) { log.push({ item: 'comment-likes', ok: false, error: e.message }); }
-
-  const ghResults = await githubPushAll(pushed);
-  return {
-    gasLog: log,
-    githubPushed: pushed.map((f, i) => ({
-      file: f[0],
-      ok:    ghResults[i].status === 'fulfilled',
-      error: ghResults[i].status === 'rejected' ? ghResults[i].reason.message : null,
-    })),
-  };
+  githubPush('data/comments.json', comments, 'sync: comments updated').catch(() => {});
 }
 
 // ── On-startup: load comments from GAS if local file is empty ─────────────────
@@ -682,7 +556,7 @@ async function handleApi(req, res, apiPath) {
 
     // Async: POST to GAS (triggers doPost, data saved to sheet)
     // id is passed so GAS uses the same UUID as local (requires code.gs v4.1+)
-    gasPostFireForget({ action: 'addComment', id: comment.id, movieId, userId, userName, content, reply_to: replyTo, reply_to_name: replyToName });
+    gasPost({ action: 'addComment', id: comment.id, movieId, userId, userName, content, reply_to: replyTo, reply_to_name: replyToName });
 
     // Async: push updated comments.json to GitHub
     syncCommentsToGithub(all);
@@ -705,7 +579,7 @@ async function handleApi(req, res, apiPath) {
     all[idx].edited  = true;
     writeComments(all);
 
-    gasPostFireForget({ action: 'editComment', id, content });
+    gasPost({ action: 'editComment', id, content });
     syncCommentsToGithub(all);
 
     return json(res, { success: true });
@@ -721,7 +595,7 @@ async function handleApi(req, res, apiPath) {
     all.splice(idx, 1);
     writeComments(all);
 
-    gasPostFireForget({ action: 'deleteComment', id });
+    gasPost({ action: 'deleteComment', id });
     syncCommentsToGithub(all);
 
     return json(res, { success: true });
@@ -738,7 +612,7 @@ async function handleApi(req, res, apiPath) {
     all[idx].likes = (Number(all[idx].likes) || 0) + 1;
     writeComments(all);
 
-    gasPostFireForget({ action: 'likeComment', id });
+    gasPost({ action: 'likeComment', id });
     syncCommentsToGithub(all);
 
     return json(res, { success: true, likes: all[idx].likes });
@@ -792,65 +666,14 @@ async function handleApi(req, res, apiPath) {
   }
 
   // ══════════════════════════════════════════════════════════════════════════
-  // GITHUB PUSH — proxied through GAS (api.github.com not reachable from server)
-  //   PUT/POST /api/github/push  { file, content, message, raw? }
-  //     raw=true  → image upload (content is base64) → GAS:pushImageToGithub
-  //     raw=false → JSON file push (content is array/object) → GAS:pushMoviesJson or syncAllToGithub
+  // GITHUB PUSH
   // ══════════════════════════════════════════════════════════════════════════
 
-  if (apiPath === '/github/push' && (method === 'PUT' || method === 'POST')) {
+  if (apiPath === '/github/push' && method === 'PUT') {
     const body = await readBody(req);
     if (!body.file || !body.content) return json(res, { error: 'file and content required' }, 400);
-    try {
-      let r;
-      if (body.raw) {
-        // Image upload — delegate to GAS which can reach api.github.com
-        r = await gasPost({ action: 'pushImageToGithub', file: body.file, content: body.content, message: body.message || 'Upload image via MOOVIED' });
-      } else {
-        // JSON file push (movies.json etc)
-        r = await gasPost({ action: 'pushMoviesJson', movies: body.content, message: body.message });
-      }
-      if (!r || !r.success) throw new Error(r && r.error ? r.error : 'GAS push failed');
-      console.log('[GitHub via GAS] pushed', body.file);
-      return json(res, { success: true, file: body.file, url: r.url || null });
-    } catch (e) {
-      console.error('[GitHub via GAS] error:', e.message);
-      return json(res, { success: false, error: e.message }, 500);
-    }
-  }
-
-  // ══════════════════════════════════════════════════════════════════════════
-  // GITHUB SYNC — full sync via GAS (movies + comments + activity data)
-  //   POST /api/github/sync
-  // ══════════════════════════════════════════════════════════════════════════
-
-  if (apiPath === '/github/sync' && method === 'POST') {
-    try {
-      console.log('[sync] starting full GAS → GitHub sync');
-      const r = await gasPost({ action: 'syncAllToGithub' });
-      const cfg = loadAutosyncConfig();
-      cfg.lastSync = new Date().toISOString();
-      saveAutosyncConfig(cfg);
-      if (!r || !r.success) throw new Error(r && r.error ? r.error : 'GAS sync failed');
-      console.log('[sync] done:', JSON.stringify(r.results || []));
-      return json(res, { success: true, results: r.results || [], syncedAt: cfg.lastSync });
-    } catch (e) {
-      console.error('[sync] error:', e.message);
-      return json(res, { success: false, error: e.message }, 500);
-    }
-  }
-
-  // ══════════════════════════════════════════════════════════════════════════
-  // GITHUB STATUS — check token via GAS
-  // ══════════════════════════════════════════════════════════════════════════
-
-  if (apiPath === '/github/status' && method === 'GET') {
-    try {
-      const r = await gasGet('githubStatus');
-      return json(res, r);
-    } catch (e) {
-      return json(res, { success: false, error: e.message }, 500);
-    }
+    await githubPush(body.file, body.content, body.message || 'Upload via MOOVIED');
+    return json(res, { success: true });
   }
 
   // ══════════════════════════════════════════════════════════════════════════
@@ -883,13 +706,20 @@ async function handleApi(req, res, apiPath) {
   }
 
   if (apiPath === '/autosync/trigger' && method === 'POST') {
+    // Pull fresh data from GAS and update local cache
     const cfg = loadAutosyncConfig();
     cfg.lastSync = new Date().toISOString();
     saveAutosyncConfig(cfg);
-    // Full sync in background — returns immediately
-    fullSyncFromGAS().then(result => {
-      console.log('[autosync] trigger done:', result.gasLog.map(l => l.item + ':' + l.ok).join(', '));
+
+    // Async sync: pull all comments from GAS, overwrite local file
+    gasGet('getAllComments').then(r => {
+      if (r.success && Array.isArray(r.comments)) {
+        writeComments(r.comments);
+        syncCommentsToGithub(r.comments);
+        console.log('[autosync] pulled', r.comments.length, 'comments from GAS');
+      }
     }).catch(e => console.log('[autosync] error:', e.message));
+
     return json(res, { success: true, triggeredAt: cfg.lastSync });
   }
 
