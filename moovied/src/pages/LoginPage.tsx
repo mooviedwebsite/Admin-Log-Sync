@@ -22,7 +22,9 @@ export default function LoginPage() {
     setLoading(true);
 
     try {
-      if (checkAdminLogin(email, password)) {
+      // checkAdminLogin is async (uses Web Crypto SHA-256)
+      const isAdmin = await checkAdminLogin(email, password);
+      if (isAdmin) {
         setCurrentUser({
           id: "admin",
           name: "Admin",
@@ -48,7 +50,7 @@ export default function LoginPage() {
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : "Login failed";
       if (msg.includes("not configured")) {
-        setError("Backend not connected. Admin login: rawindunethsara93@gmail.com / Rnd@12114");
+        setError("Backend not connected. Please try again later.");
       } else {
         setError(msg);
       }
