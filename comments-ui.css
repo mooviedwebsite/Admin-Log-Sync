@@ -1,0 +1,563 @@
+/* ══════════════════════════════════════════════════════════════════════════════
+   MOOVIED COMMENTS SYSTEM — Netflix-Style CSS
+   ══════════════════════════════════════════════════════════════════════════════ */
+
+:root {
+  --mvd-primary: #FFD700;
+  --mvd-primary-hover: #FFC107;
+  --mvd-bg-dark: #0a0a18;
+  --mvd-bg-darker: #05050d;
+  --mvd-bg-card: rgba(255, 255, 255, 0.05);
+  --mvd-border: rgba(255, 255, 255, 0.1);
+  --mvd-border-hover: rgba(255, 255, 255, 0.2);
+  --mvd-text-primary: rgba(255, 255, 255, 0.95);
+  --mvd-text-secondary: rgba(255, 255, 255, 0.65);
+  --mvd-text-tertiary: rgba(255, 255, 255, 0.45);
+  --mvd-success: #4ade80;
+  --mvd-error: #ef4444;
+}
+
+/* ── Main Container ──────────────────────���──────────────────────────────────── */
+
+.mvd-comments-section {
+  max-width: 900px;
+  margin: 60px auto;
+  padding: 0 20px;
+}
+
+.mvd-comments-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 32px;
+  padding-bottom: 16px;
+  border-bottom: 2px solid var(--mvd-border);
+}
+
+.mvd-comments-title {
+  font-size: 28px;
+  font-weight: 700;
+  color: var(--mvd-text-primary);
+  margin: 0;
+  letter-spacing: 0.5px;
+}
+
+.mvd-comments-count {
+  display: inline-block;
+  padding: 6px 14px;
+  background: var(--mvd-primary);
+  color: var(--mvd-bg-dark);
+  border-radius: 20px;
+  font-weight: 600;
+  font-size: 14px;
+}
+
+/* ── Comment Input ──────────────────────────────────────────────────────────── */
+
+.mvd-comment-input-wrapper {
+  margin-bottom: 40px;
+  animation: slideInUp 0.5s ease-out;
+}
+
+@keyframes slideInUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.mvd-comment-input-box {
+  display: flex;
+  gap: 16px;
+  padding: 20px;
+  background: var(--mvd-bg-card);
+  border: 1px solid var(--mvd-border);
+  border-radius: 12px;
+  backdrop-filter: blur(10px);
+  transition: all 0.3s ease;
+}
+
+.mvd-comment-input-box:hover {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: var(--mvd-border-hover);
+}
+
+.mvd-comment-input-box:focus-within {
+  border-color: var(--mvd-primary);
+  box-shadow: 0 0 0 3px rgba(255, 215, 0, 0.1);
+}
+
+.mvd-comment-input-avatar {
+  flex-shrink: 0;
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  overflow: hidden;
+  background: var(--mvd-bg-darker);
+}
+
+.mvd-comment-input-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.mvd-comment-input-field {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.mvd-comment-textarea {
+  width: 100%;
+  padding: 12px 16px;
+  background: rgba(0, 0, 0, 0.3);
+  border: 1px solid var(--mvd-border);
+  border-radius: 8px;
+  color: var(--mvd-text-primary);
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  font-size: 14px;
+  line-height: 1.5;
+  resize: vertical;
+  transition: all 0.3s ease;
+}
+
+.mvd-comment-textarea:focus {
+  outline: none;
+  border-color: var(--mvd-primary);
+  background: rgba(0, 0, 0, 0.5);
+  box-shadow: 0 0 0 3px rgba(255, 215, 0, 0.05);
+}
+
+.mvd-comment-textarea::placeholder {
+  color: var(--mvd-text-tertiary);
+}
+
+.mvd-comment-input-actions {
+  display: flex;
+  gap: 10px;
+  justify-content: flex-end;
+}
+
+/* ── Buttons ─────────────────────────────────────────────────────────────── */
+
+.mvd-btn {
+  padding: 10px 20px;
+  border: none;
+  border-radius: 6px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  letter-spacing: 0.3px;
+}
+
+.mvd-btn-primary {
+  background: var(--mvd-primary);
+  color: var(--mvd-bg-dark);
+}
+
+.mvd-btn-primary:hover {
+  background: var(--mvd-primary-hover);
+  transform: translateY(-2px);
+  box-shadow: 0 8px 24px rgba(255, 215, 0, 0.3);
+}
+
+.mvd-btn-primary:active {
+  transform: translateY(0);
+}
+
+.mvd-btn-secondary {
+  background: transparent;
+  color: var(--mvd-text-secondary);
+  border: 1px solid var(--mvd-border);
+}
+
+.mvd-btn-secondary:hover {
+  border-color: var(--mvd-border-hover);
+  color: var(--mvd-text-primary);
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.mvd-btn-small {
+  padding: 8px 16px;
+  font-size: 13px;
+}
+
+/* ── Login Prompt ───────��───────────────────────────────────────────────────── */
+
+.mvd-comment-login-prompt {
+  text-align: center;
+  padding: 40px;
+  background: var(--mvd-bg-card);
+  border: 1px solid var(--mvd-border);
+  border-radius: 12px;
+  margin-bottom: 32px;
+}
+
+.mvd-comment-login-prompt p {
+  color: var(--mvd-text-secondary);
+  font-size: 16px;
+  margin-bottom: 20px;
+}
+
+/* ── Comments List ──────────────────────────────────────────────────────────── */
+
+.mvd-comments-list {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.mvd-comment-item {
+  display: flex;
+  gap: 16px;
+  padding: 20px;
+  background: var(--mvd-bg-card);
+  border: 1px solid var(--mvd-border);
+  border-radius: 12px;
+  transition: all 0.3s ease;
+  animation: slideInUp 0.5s ease-out;
+}
+
+.mvd-comment-item:hover {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: var(--mvd-border-hover);
+}
+
+.mvd-comment-avatar {
+  flex-shrink: 0;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  overflow: hidden;
+  background: var(--mvd-bg-darker);
+}
+
+.mvd-comment-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.mvd-comment-content {
+  flex: 1;
+  min-width: 0;
+}
+
+.mvd-comment-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+  gap: 12px;
+}
+
+.mvd-comment-info {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.mvd-comment-author {
+  font-weight: 600;
+  color: var(--mvd-text-primary);
+  font-size: 14px;
+}
+
+.mvd-comment-time {
+  color: var(--mvd-text-tertiary);
+  font-size: 13px;
+}
+
+.mvd-comment-edited {
+  color: var(--mvd-text-tertiary);
+  font-size: 12px;
+  font-style: italic;
+}
+
+.mvd-comment-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.mvd-comment-action-btn {
+  padding: 6px 10px;
+  background: transparent;
+  border: none;
+  color: var(--mvd-text-secondary);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 4px;
+}
+
+.mvd-comment-action-btn:hover {
+  color: var(--mvd-text-primary);
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.mvd-comment-action-btn.delete-btn:hover {
+  color: var(--mvd-error);
+}
+
+.mvd-comment-text {
+  color: var(--mvd-text-primary);
+  font-size: 15px;
+  line-height: 1.6;
+  margin: 0 0 12px 0;
+  word-break: break-word;
+  white-space: pre-wrap;
+}
+
+/* ── Comment Footer (Actions) ────────────────────────────────────────────────── */
+
+.mvd-comment-footer {
+  display: flex;
+  gap: 16px;
+  align-items: center;
+  margin-top: 12px;
+}
+
+.mvd-comment-like-btn,
+.mvd-comment-reply-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  background: transparent;
+  border: 1px solid var(--mvd-border);
+  border-radius: 6px;
+  color: var(--mvd-text-secondary);
+  font-size: 13px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.mvd-comment-like-btn:hover,
+.mvd-comment-reply-btn:hover {
+  border-color: var(--mvd-primary);
+  color: var(--mvd-primary);
+  background: rgba(255, 215, 0, 0.05);
+}
+
+.mvd-comment-like-count {
+  font-weight: 600;
+  font-size: 12px;
+}
+
+/* ── Edit Form ──────────────────────────────────────────────────────────────── */
+
+.mvd-comment-edit-form {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-top: 12px;
+  padding: 12px;
+  background: rgba(0, 0, 0, 0.2);
+  border-radius: 8px;
+  border: 1px solid var(--mvd-border);
+}
+
+.mvd-comment-edit-textarea {
+  padding: 10px 12px;
+  background: rgba(0, 0, 0, 0.3);
+  border: 1px solid var(--mvd-border);
+  border-radius: 6px;
+  color: var(--mvd-text-primary);
+  font-family: inherit;
+  font-size: 14px;
+  resize: vertical;
+  min-height: 80px;
+  transition: all 0.3s ease;
+}
+
+.mvd-comment-edit-textarea:focus {
+  outline: none;
+  border-color: var(--mvd-primary);
+  background: rgba(0, 0, 0, 0.4);
+}
+
+.mvd-comment-edit-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
+/* ── Loading & Empty States ───────────────────────────────────────────────────── */
+
+.mvd-loading,
+.mvd-no-comments {
+  text-align: center;
+  padding: 40px;
+  color: var(--mvd-text-secondary);
+  font-size: 15px;
+}
+
+.mvd-loading {
+  animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
+}
+
+/* ── Responsive Design ──────────────────────────────────────────────────────── */
+
+@media (max-width: 768px) {
+  .mvd-comments-section {
+    padding: 0 16px;
+    margin: 40px auto;
+  }
+
+  .mvd-comments-title {
+    font-size: 22px;
+  }
+
+  .mvd-comment-input-box {
+    flex-direction: column;
+    padding: 16px;
+    gap: 12px;
+  }
+
+  .mvd-comment-input-avatar {
+    width: 40px;
+    height: 40px;
+  }
+
+  .mvd-comment-item {
+    gap: 12px;
+    padding: 16px;
+  }
+
+  .mvd-comment-avatar {
+    width: 40px;
+    height: 40px;
+  }
+
+  .mvd-comment-header {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .mvd-comment-footer {
+    flex-wrap: wrap;
+  }
+
+  .mvd-comment-like-btn,
+  .mvd-comment-reply-btn {
+    flex: 0 1 calc(50% - 8px);
+    justify-content: center;
+  }
+}
+
+@media (max-width: 480px) {
+  .mvd-comments-title {
+    font-size: 20px;
+  }
+
+  .mvd-comments-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 12px;
+  }
+
+  .mvd-comment-input-actions,
+  .mvd-comment-edit-actions {
+    flex-direction: column;
+  }
+
+  .mvd-btn {
+    width: 100%;
+  }
+
+  .mvd-comment-footer {
+    flex-direction: column;
+  }
+
+  .mvd-comment-like-btn,
+  .mvd-comment-reply-btn {
+    flex: 1;
+    width: 100%;
+  }
+}
+
+/* ── Dark Mode (Default) ────────────────────────────────────────────────────── */
+
+@media (prefers-color-scheme: dark) {
+  .mvd-comments-section {
+    background: transparent;
+  }
+}
+
+/* ── Light Mode Alternative ────────────────────────────────────────────────────── */
+
+@media (prefers-color-scheme: light) {
+  :root {
+    --mvd-bg-dark: #f8f8f8;
+    --mvd-bg-darker: #f0f0f0;
+    --mvd-bg-card: rgba(0, 0, 0, 0.05);
+    --mvd-border: rgba(0, 0, 0, 0.1);
+    --mvd-border-hover: rgba(0, 0, 0, 0.2);
+    --mvd-text-primary: #1a1a1a;
+    --mvd-text-secondary: rgba(0, 0, 0, 0.65);
+    --mvd-text-tertiary: rgba(0, 0, 0, 0.45);
+  }
+
+  .mvd-btn-primary {
+    color: #000;
+  }
+}
+
+/* ── Animations ───────────────────────────────────────────────────────────── */
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes scaleIn {
+  from {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+/* ── Accessibility ────────────────────────────────────────────────────────── */
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* ── Print Styles ───────────────────────────────────────────────────────────── */
+
+@media print {
+  .mvd-comments-section {
+    display: none;
+  }
+}
