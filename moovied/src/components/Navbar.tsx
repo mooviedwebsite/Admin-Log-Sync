@@ -218,8 +218,11 @@ export default function Navbar({ onSearch, searchQuery }: NavbarProps) {
                     onClick={() => setUserMenuOpen((v) => !v)}
                     className="flex items-center gap-2 bg-white/5 hover:bg-yellow-400/10 border border-white/10 hover:border-yellow-400/30 rounded-full pl-1 pr-3 py-1 transition-all"
                   >
-                    <div className="w-7 h-7 rounded-full bg-yellow-400 flex items-center justify-center flex-shrink-0">
-                      <span className="text-xs font-black text-black">{user.name[0]?.toUpperCase()}</span>
+                    <div className="w-7 h-7 rounded-full bg-yellow-400 flex items-center justify-center flex-shrink-0 overflow-hidden">
+                      {user.avatarUrl
+                        ? <img src={user.avatarUrl} alt={user.name} className="w-full h-full object-cover" />
+                        : <span className="text-xs font-black text-black">{user.name[0]?.toUpperCase()}</span>
+                      }
                     </div>
                     <span className="hidden sm:block text-sm text-white/80 max-w-28 truncate">{user.name}</span>
                     <ChevronDown className={`hidden sm:block w-3 h-3 text-white/40 transition-transform ${userMenuOpen ? "rotate-180" : ""}`} />
@@ -302,8 +305,11 @@ export default function Navbar({ onSearch, searchQuery }: NavbarProps) {
         {user && (
           <div className="px-5 py-4 border-b border-white/10 bg-yellow-400/5 flex-shrink-0">
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-full bg-yellow-400 flex items-center justify-center flex-shrink-0">
-                <span className="text-base font-black text-black">{user.name[0]?.toUpperCase()}</span>
+              <div className="w-10 h-10 rounded-full bg-yellow-400 flex items-center justify-center flex-shrink-0 overflow-hidden">
+                {user.avatarUrl
+                  ? <img src={user.avatarUrl} alt={user.name} className="w-full h-full object-cover" />
+                  : <span className="text-base font-black text-black">{user.name[0]?.toUpperCase()}</span>
+                }
               </div>
               <div className="min-w-0">
                 <p className="text-sm font-bold text-white truncate">{user.name}</p>
