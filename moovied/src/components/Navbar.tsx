@@ -221,8 +221,7 @@ export default function Navbar({ onSearch, searchQuery }: NavbarProps) {
                     <div className="w-7 h-7 rounded-full bg-yellow-400 flex items-center justify-center flex-shrink-0 overflow-hidden">
                       {user.avatarUrl
                         ? <img src={user.avatarUrl} alt={user.name} className="w-full h-full object-cover" />
-                        : <span className="text-xs font-black text-black">{user.name[0]?.toUpperCase()}</span>
-                      }
+                        : <span className="text-xs font-black text-black">{user.name[0]?.toUpperCase()}</span>}
                     </div>
                     <span className="hidden sm:block text-sm text-white/80 max-w-28 truncate">{user.name}</span>
                     <ChevronDown className={`hidden sm:block w-3 h-3 text-white/40 transition-transform ${userMenuOpen ? "rotate-180" : ""}`} />
@@ -308,8 +307,7 @@ export default function Navbar({ onSearch, searchQuery }: NavbarProps) {
               <div className="w-10 h-10 rounded-full bg-yellow-400 flex items-center justify-center flex-shrink-0 overflow-hidden">
                 {user.avatarUrl
                   ? <img src={user.avatarUrl} alt={user.name} className="w-full h-full object-cover" />
-                  : <span className="text-base font-black text-black">{user.name[0]?.toUpperCase()}</span>
-                }
+                  : <span className="text-base font-black text-black">{user.name[0]?.toUpperCase()}</span>}
               </div>
               <div className="min-w-0">
                 <p className="text-sm font-bold text-white truncate">{user.name}</p>
