@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { Link } from "wouter";
-import { type Movie } from "@/lib/api";
+import { type Movie, imgProxy } from "@/lib/api";
 import "./HeroBanner.css";
 
 interface HeroBannerProps {
@@ -85,10 +85,8 @@ export default function HeroBanner({ movies }: HeroBannerProps) {
   }, [featured.length]);
 
   // ── Preload ALL 5 poster images right now, in parallel ────────────────────
-  // This puts all 5 bitmaps into the browser's in-memory image cache BEFORE
-  // the user reaches that slide — zero lag on slide change.
   useEffect(() => {
-    featured.forEach((m) => { if (m.poster_url) preloadImg(m.poster_url); });
+    featured.forEach((m) => { if (m.poster_url) preloadImg(imgProxy(m.poster_url)); });
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [featured.length]);
 
@@ -210,7 +208,7 @@ export default function HeroBanner({ movies }: HeroBannerProps) {
                 {/* ── LAYER 0: Poster — <img> never re-fetches on scroll ── */}
                 <img
                   className={`hb-poster${isCurrent && isActive ? " visible" : ""}${showVideo ? " behind-video" : ""}`}
-                  src={m.poster_url}
+                  src={imgProxy(m.poster_url)}
                   alt=""
                   aria-hidden="true"
                   loading="eager"
