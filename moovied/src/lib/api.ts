@@ -21,8 +21,22 @@ import {
 import { saveMovieMeta, deleteMovieMeta } from "./movieMeta";
 
 // ─── Worker URL ───────────────────────────────────────────────────────────────
-// This is your Cloudflare Worker URL — never changes, no need to store in localStorage
 export const WORKER_URL = "https://moovied-api.moovieds-server.workers.dev/api";
+
+/**
+ * imgProxy — route any image URL through Cloudflare edge cache.
+ * Instead of: <img src={movie.poster_url} />
+ * Use:        <img src={imgProxy(movie.poster_url)} />
+ *
+ * Cloudflare caches the image at the nearest edge city globally.
+ * First load fetches from origin + stores in R2. Next loads = instant.
+ */
+export function imgProxy(url: string | undefined): string {
+  if (!url) return "";
+  // Don't double-proxy R2/Cloudflare URLs or data URIs
+  if (url.startsWith("data:") || url.includes("r2.dev") || url.includes("workers.dev")) return url;
+  return `${WORKER_URL}/img?url=${encodeURIComponent(url)}`;
+}
 
 // ─── GAS config (still used for movies, users, stats) ────────────────────────
 const GAS_URL_KEY    = "moovied_gas_url";
