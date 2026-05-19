@@ -1,9 +1,10 @@
 import { useState } from "react";
 import { Link } from "wouter";
 import { Star, Play, Bookmark, BookmarkCheck } from "lucide-react";
-import { type Movie } from "@/lib/api";
+import { type Movie, imgProxy } from "@/lib/api";
 import { formatViews } from "@/lib/utils";
-import { toggleBookmark, isBookmarked, getCurrentUser } from "@/lib/auth";
+import { toggleBookmarkCache, isBookmarked, getCurrentUser } from "@/lib/auth";
+import { cfUser } from "@/lib/api";
 
 interface MovieCardProps {
   movie: Movie;
@@ -12,17 +13,25 @@ interface MovieCardProps {
 
 export default function MovieCard({ movie, onBookmarkChange }: MovieCardProps) {
   const [bookmarked, setBookmarked] = useState(isBookmarked(movie.id));
-  const [hovered, setHovered] = useState(false);
-  const [imgError, setImgError] = useState(false);
+  const [hovered, setHovered]       = useState(false);
+  const [imgError, setImgError]     = useState(false);
 
   const user = getCurrentUser();
 
-  const handleBookmark = (e: React.MouseEvent) => {
+  const handleBookmark = async (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
     if (!user) return;
-    const newState = toggleBookmark(movie.id);
+    // Optimistic update instantly
+    const newState = !bookmarked;
     setBookmarked(newState);
+    toggleBookmarkCache(movie.id); // local cache
+    // Save to Cloudflare D1
+    cfUser.toggleBookmark(user.id, movie.id).catch(() => {
+      // Revert on error
+      setBookmarked(!newState);
+      toggleBookmarkCache(movie.id);
+    });
     onBookmarkChange?.();
   };
 
@@ -36,7 +45,7 @@ export default function MovieCard({ movie, onBookmarkChange }: MovieCardProps) {
       <div className="relative aspect-[2/3] bg-zinc-950 overflow-hidden rounded-xl">
         {!imgError ? (
           <img
-            src={movie.poster_url}
+            src={imgProxy(movie.poster_url)}
             alt={movie.title}
             loading="lazy"
             className={`w-full h-full object-cover transition-transform duration-500 ${hovered ? "scale-110" : "scale-100"}`}
