@@ -11,6 +11,7 @@ import MovieBanner from "@/components/MovieBanner";
 import { api, likeStore, realComments, type Movie, type Comment } from "@/lib/api";
 import { toggleBookmark, isBookmarked, getCurrentUser, addToWatchHistory } from "@/lib/auth";
 import { useMovie, useMovies } from "@/hooks/useMovies";
+import { usePlayerLoader, DarkFade, LoadingToast } from "@/hooks/usePlayerLoader";
 
 // ── Cast parser ───────────────────────────────────────────────────────────────
 function parseCast(raw: string) {
@@ -939,6 +940,7 @@ export default function MoviePage() {
   const [liked, setLiked] = useState(false);
   const [showPlayer, setShowPlayer] = useState(false);
   const [playingEpisodeIdx, setPlayingEpisodeIdx] = useState<number | null>(null);
+  const { showFade, showToast, triggerPlay, cancelPlay } = usePlayerLoader();
   const tabRef = useRef<HTMLDivElement>(null);
   const user = getCurrentUser();
 
@@ -983,18 +985,20 @@ export default function MoviePage() {
     setActiveTab("movie");
   }, [id]);
 
-  const handlePlay = async () => {
+  const handlePlay = () => {
     if (!movie) return;
-    if (user) {
-      addToWatchHistory({ movieId: movie.id, movieTitle: movie.title, posterUrl: movie.poster_url });
-      try { await api.addViewCount(movie.id, user.id); } catch {}
-    }
-    if (movie.type === "series" && Array.isArray(movie.episodes) && movie.episodes.length > 0) {
-      setPlayingEpisodeIdx(0);
-    } else {
-      setPlayingEpisodeIdx(null);
-    }
-    setShowPlayer(true);
+    triggerPlay(() => {
+      if (user) {
+        addToWatchHistory({ movieId: movie.id, movieTitle: movie.title, posterUrl: movie.poster_url });
+        api.addViewCount(movie.id, user.id).catch(() => {});
+      }
+      if (movie.type === "series" && Array.isArray(movie.episodes) && movie.episodes.length > 0) {
+        setPlayingEpisodeIdx(0);
+      } else {
+        setPlayingEpisodeIdx(null);
+      }
+      setShowPlayer(true);
+    });
   };
 
   const handleBookmark = () => {
@@ -1042,11 +1046,15 @@ export default function MoviePage() {
 
   return (
     <div className="min-h-screen bg-black text-white">
+      {/* Dark fade + loading toast — shown while player loads */}
+      <DarkFade visible={showFade} />
+      <LoadingToast visible={showToast} />
+
       {/* ── Video Player Modal ── */}
       {showPlayer && movie && (
         <VideoPlayerModal
           movie={movie}
-          onClose={() => { setShowPlayer(false); setPlayingEpisodeIdx(null); }}
+          onClose={() => { setShowPlayer(false); setPlayingEpisodeIdx(null); cancelPlay(); }}
           episodes={movie.type === "series" && Array.isArray(movie.episodes) && movie.episodes.length > 0 ? movie.episodes : undefined}
           episodeIdx={playingEpisodeIdx ?? undefined}
           onEpisodeChange={(idx) => setPlayingEpisodeIdx(idx)}
@@ -1239,8 +1247,10 @@ export default function MoviePage() {
                         key={ep.id}
                         className="group flex items-center gap-4 rounded-2xl border border-white/8 bg-white/3 hover:bg-white/7 hover:border-yellow-400/20 transition-all p-4 cursor-pointer"
                         onClick={() => {
-                          setPlayingEpisodeIdx(epIdx);
-                          setShowPlayer(true);
+                          triggerPlay(() => {
+                            setPlayingEpisodeIdx(epIdx);
+                            setShowPlayer(true);
+                          });
                         }}
                       >
                         {/* Thumbnail */}
