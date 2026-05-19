@@ -1,7 +1,7 @@
 import { useEffect, useState, useRef } from "react";
 import { Link } from "wouter";
 import { Eye, Bookmark, BookmarkCheck } from "lucide-react";
-import { type Movie } from "@/lib/api";
+import { type Movie, imgProxy } from "@/lib/api";
 import { formatViews } from "@/lib/utils";
 import "./HeroBanner.css";
 
@@ -76,7 +76,7 @@ export default function MovieBanner({
             {/* Layer 0: Poster (instant fallback) */}
             <div
               className={`banner-bg${isActive ? " active" : ""}`}
-              style={{ backgroundImage: `url('${movie.poster_url}')` }}
+              style={{ backgroundImage: `url('${imgProxy(movie.poster_url)}')` }}
             />
 
             {/* Layer 1: YouTube video background */}
