@@ -5,6 +5,23 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <title>MOOVIED Player</title>
+<!-- INSTANT LOADING SCREEN: shown immediately before anything else loads -->
+<style id="instant-loader-style">
+#instant-loader{position:fixed;inset:0;background:#000;z-index:99999;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:24px;font-family:system-ui,-apple-system,sans-serif;}
+#instant-loader .il-logo{font-size:28px;font-weight:900;letter-spacing:0.15em;color:#fff;}
+#instant-loader .il-logo span{color:#FACC15;}
+#instant-loader .il-bar{width:200px;height:3px;background:rgba(255,255,255,0.1);border-radius:99px;overflow:hidden;}
+#instant-loader .il-fill{height:100%;width:0%;background:#FACC15;border-radius:99px;animation:ilFill 1.8s cubic-bezier(0.4,0,0.2,1) forwards;}
+#instant-loader .il-text{font-size:12px;color:rgba(255,255,255,0.35);letter-spacing:0.08em;}
+@keyframes ilFill{0%{width:0%}60%{width:75%}85%{width:88%}100%{width:92%}}
+</style>
+<script>
+// Show instant loading screen before any other resource loads
+document.addEventListener('DOMContentLoaded',function(){
+  var el=document.getElementById('instant-loader');
+  if(el)setTimeout(function(){el.style.opacity='0';el.style.transition='opacity 0.4s';setTimeout(function(){el.remove();var s=document.getElementById('instant-loader-style');if(s)s.remove();},400);},800);
+});
+</script>
 <!-- Fonts: non-blocking — never delays video start -->
 <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin>
 <link rel="preload" as="style" href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;600;700&display=swap" onload="this.onload=null;this.rel='stylesheet'">
@@ -471,6 +488,12 @@ html, body {
 </style>
 </head>
 <body>
+<!-- INSTANT LOADING SCREEN — visible immediately, fades out when player is ready -->
+<div id="instant-loader">
+  <div class="il-logo">MOOV<span>IED</span></div>
+  <div class="il-bar"><div class="il-fill"></div></div>
+  <div class="il-text">Loading player…</div>
+</div>
 <div id="player-wrap" tabindex="0">
 
   <!-- INTRO -->
@@ -1497,31 +1520,20 @@ function loadTestVideo(){
 loadTestVideo();
 
 // ════════════════════════════════════════════════
-// SINGLE TAB GUARD — prevents multiple player tabs
-// If this page is already open in another tab,
-// that tab gets focused instead of opening a new one.
-// Works via BroadcastChannel + window.name token.
+// NAMED WINDOW REUSE — works with window.open("","moovied_player")
+// When the website opens this tab again with a new URL,
+// we detect the URL change and reload the player with new params.
 // ════════════════════════════════════════════════
 (function() {
-  const TAB_KEY = 'moovied_player_tab';
-  const myId = 'player_' + Date.now() + '_' + Math.random().toString(36).slice(2);
-  window.name = myId;
-  try {
-    const bc = new BroadcastChannel('moovied_player');
-    // Tell any other player tabs to focus themselves and close us if we're a duplicate
-    bc.postMessage({ type: 'new_tab', id: myId, url: location.href });
-    bc.onmessage = function(e) {
-      if (e.data.type === 'focus_me' && e.data.id !== myId) {
-        // Another tab asked to be focused — we are the duplicate, close ourselves
-        // But only if we haven't loaded video yet (opened by accident)
-        if (!videoLoaded) { window.close(); }
-      }
-      if (e.data.type === 'new_tab' && e.data.id !== myId) {
-        // A new tab opened — we are the original, tell them to close
-        bc.postMessage({ type: 'focus_me', id: myId });
-      }
-    };
-  } catch(e) {}
+  var lastSearch = location.search;
+  // Poll for URL change (happens when parent calls tab.location.href = newUrl)
+  setInterval(function() {
+    if (location.search !== lastSearch) {
+      lastSearch = location.search;
+      // New movie params — reload video without full page reload
+      try { loadTestVideo(); } catch(e) { location.reload(); }
+    }
+  }, 300);
 })();
 
 // ════════════════════════════════════════════════
