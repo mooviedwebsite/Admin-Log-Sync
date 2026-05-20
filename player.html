@@ -4,14 +4,13 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
-<meta http-equiv="Pragma" content="no-cache">
-<meta http-equiv="Expires" content="0">
 <title>MOOVIED Player</title>
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Sans:wght@300;400;500;600;700&family=Archivo+Black&family=Inter:wght@300;400&display=swap" rel="stylesheet">
-<!-- Google Cast SDK -->
-<script src="https://www.gstatic.com/cv/js/sender/v1/cast_sender.js?loadCastFramework=1"></script>
+<!-- Fonts: non-blocking — never delays video start -->
+<link rel="preconnect" href="https://fonts.googleapis.com" crossorigin>
+<link rel="preload" as="style" href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;600;700&display=swap" onload="this.onload=null;this.rel='stylesheet'">
+<noscript><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;600;700&display=swap"></noscript>
+<!-- Google Cast SDK: deferred so it never blocks the page -->
+<script defer src="https://www.gstatic.com/cv/js/sender/v1/cast_sender.js?loadCastFramework=1"></script>
 <style>
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -1496,6 +1495,109 @@ function loadTestVideo(){
   }
 }
 loadTestVideo();
+
+// ════════════════════════════════════════════════
+// SINGLE TAB GUARD — prevents multiple player tabs
+// If this page is already open in another tab,
+// that tab gets focused instead of opening a new one.
+// Works via BroadcastChannel + window.name token.
+// ════════════════════════════════════════════════
+(function() {
+  const TAB_KEY = 'moovied_player_tab';
+  const myId = 'player_' + Date.now() + '_' + Math.random().toString(36).slice(2);
+  window.name = myId;
+  try {
+    const bc = new BroadcastChannel('moovied_player');
+    // Tell any other player tabs to focus themselves and close us if we're a duplicate
+    bc.postMessage({ type: 'new_tab', id: myId, url: location.href });
+    bc.onmessage = function(e) {
+      if (e.data.type === 'focus_me' && e.data.id !== myId) {
+        // Another tab asked to be focused — we are the duplicate, close ourselves
+        // But only if we haven't loaded video yet (opened by accident)
+        if (!videoLoaded) { window.close(); }
+      }
+      if (e.data.type === 'new_tab' && e.data.id !== myId) {
+        // A new tab opened — we are the original, tell them to close
+        bc.postMessage({ type: 'focus_me', id: myId });
+      }
+    };
+  } catch(e) {}
+})();
+
+// ════════════════════════════════════════════════
+// CLOUDFLARE PLAYBACK POSITION SAVE
+// Saves current position to Cloudflare Worker every 10s
+// so position is remembered across devices.
+// Falls back to localStorage if Worker is unreachable.
+// ════════════════════════════════════════════════
+(function() {
+  const WORKER = 'https://moovied-api.moovieds-server.workers.dev/api';
+  const params = new URLSearchParams(location.search);
+  const movieId = params.get('movieId') || params.get('title') || 'unknown';
+  const userId = (function() {
+    try { const s = localStorage.getItem('moovied_session'); if (s) return JSON.parse(s).id; } catch(e) {}
+    return null;
+  })();
+
+  let lastSavedPos = 0;
+
+  function savePosition(pos) {
+    if (!pos || pos < 5) return;
+    if (Math.abs(pos - lastSavedPos) < 5) return; // only save if moved 5+ seconds
+    lastSavedPos = pos;
+    // Always save to localStorage (instant, offline)
+    localStorage.setItem('moovied_pos_' + movieId, String(Math.floor(pos)));
+    // Also save to Cloudflare if user is logged in
+    if (userId) {
+      fetch(WORKER + '/user/' + encodeURIComponent(userId) + '/history', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ movie_id: movieId, progress: Math.floor(pos) }),
+        keepalive: true,
+      }).catch(function() {});
+    }
+  }
+
+  function loadCloudPosition() {
+    if (!userId) return;
+    fetch(WORKER + '/user/' + encodeURIComponent(userId) + '/history?limit=50')
+      .then(function(r) { return r.json(); })
+      .then(function(d) {
+        const entry = (d.history || []).find(function(h) { return h.movie_id === movieId; });
+        if (entry && entry.progress > 30) {
+          // Only offer resume if cloud position is further than localStorage
+          const localPos = parseFloat(localStorage.getItem('moovied_pos_' + movieId) || '0');
+          if (entry.progress > localPos + 10) {
+            // Show resume banner
+            const banner = document.createElement('div');
+            banner.style.cssText = 'position:fixed;bottom:80px;left:50%;transform:translateX(-50%);z-index:9999;background:rgba(10,10,10,0.97);border:1px solid rgba(255,255,255,0.1);border-radius:12px;padding:12px 20px;display:flex;align-items:center;gap:12px;font-family:DM Sans,sans-serif;font-size:13px;color:#fff;box-shadow:0 8px 32px rgba(0,0,0,0.6);';
+            const mins = Math.floor(entry.progress / 60);
+            const secs = String(Math.floor(entry.progress % 60)).padStart(2, '0');
+            banner.innerHTML = '<span style="color:rgba(255,255,255,0.6)">Resume from <strong style="color:#FACC15">' + mins + ':' + secs + '</strong>?</span>'
+              + '<button onclick="vid.currentTime=' + entry.progress + ';this.parentElement.remove();" style="background:#FACC15;color:#000;border:none;border-radius:8px;padding:6px 14px;font-size:12px;font-weight:800;cursor:pointer;font-family:inherit;">Resume</button>'
+              + '<button onclick="this.parentElement.remove();" style="background:rgba(255,255,255,0.08);color:rgba(255,255,255,0.5);border:none;border-radius:8px;padding:6px 10px;font-size:12px;cursor:pointer;font-family:inherit;">Dismiss</button>';
+            document.getElementById('player-wrap').appendChild(banner);
+            setTimeout(function() { if (banner.parentElement) banner.remove(); }, 8000);
+          }
+        }
+      }).catch(function() {});
+  }
+
+  // Save every 10 seconds while playing
+  setInterval(function() {
+    if (vid && !vid.paused && vid.currentTime > 5) {
+      savePosition(vid.currentTime);
+    }
+  }, 10000);
+
+  // Save on page close (keepalive ensures it sends even on close)
+  window.addEventListener('beforeunload', function() {
+    if (vid && vid.currentTime > 5) savePosition(vid.currentTime);
+  });
+
+  // Load cloud position 2 seconds after player starts (don't delay initial load)
+  setTimeout(loadCloudPosition, 2000);
+})();
 
 videoFileInput.addEventListener('change',e=>{const f=e.target.files[0];if(f)loadLocalVideo(f);});
 function loadLocalVideo(file){
